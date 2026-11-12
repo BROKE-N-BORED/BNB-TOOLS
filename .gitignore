@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-workspace
+
+# Node (artifact pages, tooling)
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.log
+*.tmp
+
+# Tool artefacts
+*.zip
+*.tar.gz
+output/
+out/
+results/
+coverage/
+.coverage
+.pytest_cache/
+htmlcov/

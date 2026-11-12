@@ -1,0 +1,56 @@
+# BNB TOOLS
+
+Working scripts and CLIs: the executable halves of BNB SKILLS playbooks, plus standalone utilities. Where a skill is a playbook an agent follows, a tool is a script the agent runs. Each tool is a folder with its own README and a `--help` flag.
+
+Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats read: main chat plus 66 side chats, 73 raw workflow candidates deduped to 52 skills and 17 tools). The companion repo, BNB SKILLS, holds the playbooks these tools pair with.
+
+## Requirements
+
+- Python 3, standard library preferred. A tool should run with no extra installs unless its own README says otherwise.
+- Linux Mint. Tools are built for Joshua's Mint PC and the sandbox, not for other platforms.
+- $0. No paid services, no API keys, no subscriptions.
+
+## How to run a tool
+
+- Each folder has its own README. Read it first.
+- Every tool answers `--help` with its usage, flags, and an example.
+- Run from the tool's own folder unless its README says otherwise.
+
+## Smoke tests
+
+- Each tool ships a smoke test that runs without network access and without touching a live repo, unless its README says the test needs one.
+- Run the smoke test before first use and after any change to the tool.
+- A smoke test that needs a live service says so in the tool README and is skipped by default.
+
+## All 17 tools
+
+| # | Tool | Description | Paired skill |
+|---|---|---|---|
+| T1 | `ship-pipeline-scripts` | Zip builder with correct stored modes, SHA-256 of local zip vs downloaded Release asset, read-back checks of pushed files | S1 |
+| T2 | `delta-port-diff-verify` | Port only the marked delta from an isolated copy into the live tree, then verify the merged tree against the source copy | S2 |
+| T3 | `post-merge-battery-runner` | Wait for a stable window, run targeted classes plus the full suite, diff the failure list against baseline, report only the delta | S8 |
+| T4 | `name-check` | Batch GitHub exact-name search plus web check per candidate name; outputs clean/dead with evidence | S7 |
+| T5 | `model-sweep-harness` | Scripted benchmark and compatibility table builder feeding the sweep report | S13 |
+| T6 | `linux-release-packager` | From a tree plus icon SVG: render PNGs, generate GUI installer and .desktop, uninstaller, installer self-verification | S6 |
+| T7 | `overlay-match` | Lay a render over a reference sheet at the same scale, measure silhouette and dimension deltas, report residual offsets | S18 |
+| T8 | `logo-test-battery` | Render a mark at 16/32/48px, silhouette, grayscale, invert, crop, pasted into a real product screenshot; pass/fail per test | S21 |
+| T9 | `brand-scrub-rename` | Grep-driven whole-tree substitution with straggler catch and migration scaffolding for user state keys | S30 |
+| T10 | `repo-identity-check` | GitHub existence, empty, and description check for a repo name; handles the get_file_contents ok plus isError trap | S20 |
+| T11 | `fresh-unzip-verification` | Unzip the shipped zip into a clean directory, run the full suite there, run smoke checks, screenshot GUI tabs, report | Standalone |
+| T12 | `qt-verification-harness` | One command that sets the known-good Qt test environment and runs a launch, screenshot, and render-grab check | Standalone |
+| T13 | `headless-play-render-harness` | Puppeteer and screenshot harness at phone viewport: simulated input, live state reads, screenshots, numeric measurement | S24 |
+| T14 | `video-capture-ffmpeg-pipeline` | Drive the real app and capture it, cut to the 15s structure, LUFS loudness-normalize, fresh filenames per cut | S26 |
+| T15 | `compress-to-size` | Bitrate math from duration plus target size with a safety margin; emits the ffmpeg command, plus an audio-only alternative | Standalone |
+| T16 | `token-burn-rate-tracker` | Baseline snapshot, scheduled recheck, tokens per day plus pool-lifetime estimate | S40 |
+| T17 | `song-key-bpm-lookup` | Key and BPM data lookup plus mashup-compatibility math; tentative, depends on a scriptable key/BPM data source | S41 |
+
+## How to add a new tool
+
+- Make a folder named with the tool slug (lowercase, hyphenated).
+- Write a README in the folder: what it does, requirements, usage with `--help`, how to run its smoke test, and what it does not do.
+- Keep it Python 3 standard library unless the job genuinely needs more, and say so in the README if it does.
+- Give it a smoke test that runs without network access and without touching a live repo.
+- Add a row to the table above, in number order, with the paired skill or Standalone.
+- Ground the tool in work actually done. Do not invent a workflow. If a tool depends on a data source that does not exist yet, mark it tentative, as T17 does.
+
+License: TBD — Joshua's call, not set yet.

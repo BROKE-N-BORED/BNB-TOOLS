@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Counter demo</title>
+<style>
+  body { font-family: sans-serif; text-align: center; margin-top: 120px; }
+  #count { font-size: 64px; }
+  button { font-size: 28px; padding: 16px 40px; }
+</style>
+</head>
+<body>
+  <div id="count">0</div>
+  <button id="tap">TAP</button>
+  <script>
+    // Live state object the harness reads — the pattern used by the
+    // deer/Q+ harnesses: keep simulation state separate from the render.
+    window.__state = { count: 0, ball: { y: 123.4 } };
+    document.getElementById('tap').addEventListener('click', function () {
+      window.__state.count += 1;
+      document.getElementById('count').textContent = window.__state.count;
+    });
+  </script>
+</body>
+</html>
