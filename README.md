@@ -57,4 +57,4 @@ Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats rea
 - Add a row to the table above, in number order, with the paired skill or Standalone.
 - Ground the tool in work actually done. Do not invent a workflow. If a tool depends on a data source that does not exist yet, mark it tentative, as T17 does.
 
-License: TBD — Joshua's call, not set yet.
+License: MIT — see the LICENSE file.
