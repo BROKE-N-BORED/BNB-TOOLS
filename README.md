@@ -2,7 +2,7 @@
 
 Working scripts and CLIs: the executable halves of BNB SKILLS playbooks, plus standalone utilities. Where a skill is a playbook an agent follows, a tool is a script the agent runs. Each tool is a folder with its own README and a `--help` flag.
 
-Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats read: main chat plus 66 side chats, 73 raw workflow candidates deduped to 52 skills and 17 tools). The companion repo, BNB SKILLS, holds the playbooks these tools pair with.
+Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats read: main chat plus 66 side chats, 73 raw workflow candidates deduped to 52 skills and 17 tools). First delta scan the same evening (scan window ~17:54–19:00 EST) added 3 more tools (T18–T20) and an update to T11. The companion repo, BNB SKILLS, holds the playbooks these tools pair with.
 
 ## Requirements
 
@@ -22,7 +22,7 @@ Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats rea
 - Run the smoke test before first use and after any change to the tool.
 - A smoke test that needs a live service says so in the tool README and is skipped by default.
 
-## All 17 tools
+## All 20 tools
 
 | # | Tool | Description | Paired skill |
 |---|---|---|---|
@@ -43,6 +43,9 @@ Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats rea
 | T15 | `compress-to-size` | Bitrate math from duration plus target size with a safety margin; emits the ffmpeg command, plus an audio-only alternative | Standalone |
 | T16 | `token-burn-rate-tracker` | Baseline snapshot, scheduled recheck, tokens per day plus pool-lifetime estimate | S40 |
 | T17 | `song-key-bpm-lookup` | Key and BPM data lookup plus mashup-compatibility math; tentative, depends on a scriptable key/BPM data source | S41 |
+| T18 | `dual-model-relay-harness` | CLI relay runner mirroring DUO RelaySession semantics: blind/aware framing, turn cap, stop phrases | S55 |
+| T19 | `fake-provider-servers` | Fake Ollama plus fake OpenAI-compatible servers with failure modes and request recording | S58 |
+| T20 | `org-repo-inventory` | Live user/org repo listing; JSON inventory plus markdown queue, --diff for new/changed repos | S56 |
 
 ## How to add a new tool
 
