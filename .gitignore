@@ -38,3 +38,14 @@ coverage/
 .coverage
 .pytest_cache/
 htmlcov/
+
+# Secrets — never commit credentials
+.env
+.env.*
+*.pem
+*.key
+*.p12
+id_rsa*
+*credentials*
+providers.json
+*.local.json

@@ -1,6 +1,6 @@
 # T1 — ship-pipeline-scripts
 
-Pairs with skill **S1** (ship pipeline — verify → email → push → Release → hash-match).
+Pairs with skill **S1** (ship pipeline — verify → push → Release → hash-match).
 
 One reusable tool for the zip half of every shipment. Generalizes the per-build packers `build_release_zip.py` and `build_graphqueue_zip.py`.
 

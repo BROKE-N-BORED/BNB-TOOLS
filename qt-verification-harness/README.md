@@ -5,6 +5,12 @@ launch / screenshot / render-grab check. Standalone — the reusable form of
 the incantation that used to be re-derived every time (recipe from
 `AGENTS.md`).
 
+Harness-script patterns — the safety watcher, modal-watcher dialog drives,
+theme handling, timeouts, stderr checks — live in the
+[qt-gui-proof-harness](https://github.com/BROKE-N-BORED/BNB-SKILLS/tree/main/qt-gui-proof-harness)
+skill (S63, BNB SKILLS). This tool is the environment runner; the skill is how
+to write the proof script that runs inside it.
+
 ## The recipe it encodes
 
 | Setting | Value | Why |

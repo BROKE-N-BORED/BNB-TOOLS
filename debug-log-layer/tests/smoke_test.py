@@ -25,6 +25,9 @@ def check(name, cond, detail=""):
                        (" — " + detail) if detail and not cond else ""))
 
 
+# Deliberate FAKE values, not real credentials: key-shaped fixtures that
+# prove the scrubber redacts key-shaped values. The test cannot work
+# without them — do not remove or reshape them.
 FAKE_KEY = "sk-fake-key-1234567890abcdef"
 FAKE_TOKEN = "ghp_faketoken1234567890abcd"
 

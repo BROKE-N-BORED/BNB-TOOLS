@@ -47,6 +47,23 @@ grade/polish/verify/library all run from the installed package). This variant
 is a documented procedure, not a harness flag yet: the harness does not
 automate the fresh-venv install step.
 
+## Fresh-clone check
+
+The unzip check alone is not enough: it verifies the zip, not the repo.
+A zip built on a machine where generated files exist locally can be
+green while the repo as committed is red. MIMIK v0.2 was "324/324
+green, verified from a fresh unzip" while the fresh-clone suite had 18
+errors — all the same FileNotFoundError on `mimik-48.png`, because the
+icon PNGs were never committed — and `install.sh` died at its icon-copy
+step under `set -e` before writing the menu launcher.
+
+Procedure: clone the repo's main branch to a clean directory, run the
+full suite there, and compare the file list against the zip's. Any file
+the zip needs but the repo lacks is a defect in the repo (commit it, or
+make the build regenerate it — ACR v0.8's `build_zip.py` renders the
+PNGs from the SVG when absent). This variant is a documented procedure,
+not a harness flag yet: the harness does not automate the clone step.
+
 ## src-layout lesson
 
 From a bare clone of a src-layout project, `python3 -m unittest discover -s

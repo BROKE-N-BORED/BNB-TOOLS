@@ -2,7 +2,7 @@
 
 Working scripts and CLIs: the executable halves of BNB SKILLS playbooks, plus standalone utilities. Where a skill is a playbook an agent follows, a tool is a script the agent runs. Each tool is a folder with its own README and a `--help` flag.
 
-Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats read: main chat plus 66 side chats, 73 raw workflow candidates deduped to 52 skills and 17 tools). First delta scan the same evening (scan window ~17:54–19:00 EST) added 3 more tools (T18–T20) and an update to T11. T21 (debug-log-layer) was added later the same evening from his main-chat order for a debug layer in every project build. The companion repo, BNB SKILLS, holds the playbooks these tools pair with.
+Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats read: main chat plus 66 side chats, 73 raw workflow candidates deduped to 52 skills and 17 tools). First delta scan the same evening (scan window ~17:54–19:00 EST) added 3 more tools (T18–T20) and an update to T11. T21 (debug-log-layer) was added later the same evening from his main-chat order for a debug layer in every project build. Second delta scan (2026-11-13, window ~19:13 EST 2026-11-12 → ~10:00 EST) added 2 more tools (T22–T23) and updates to 3 tool READMEs. The companion repo, BNB SKILLS, holds the playbooks these tools pair with.
 
 ## Requirements
 
@@ -22,7 +22,7 @@ Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats rea
 - Run the smoke test before first use and after any change to the tool.
 - A smoke test that needs a live service says so in the tool README and is skipped by default.
 
-## All 21 tools
+## All 23 tools
 
 | # | Tool | Description | Paired skill |
 |---|---|---|---|
@@ -47,6 +47,8 @@ Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats rea
 | T19 | `fake-provider-servers` | Fake Ollama plus fake OpenAI-compatible servers with failure modes and request recording | S58 |
 | T20 | `org-repo-inventory` | Live user/org repo listing; JSON inventory plus markdown queue, --diff for new/changed repos | S56 |
 | T21 | `debug-log-layer` | Drop-in logging + error handling + scrubbed debug report, on demand and on crash | S61 |
+| T22 | `task-list-combine-verify` | Verify a combined task list against its source lists: every source task traced exactly once, IDs unique and contiguous, statuses adding up | S64 |
+| T23 | `task-list-coverage-check` | Check a task list covers every audit finding: uncovered findings, unknown references, duplicate IDs, count reconciliation | S65 |
 
 ## How to add a new tool
 
