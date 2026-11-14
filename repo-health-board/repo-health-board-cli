@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Repo Health Board command line - run with: bash repo-health-board-cli <command>
+#   bash repo-health-board-cli --help
+#   bash repo-health-board-cli refresh
+#   bash repo-health-board-cli show
+#   bash repo-health-board-cli export board.txt
+#   bash repo-health-board-cli debug-report
+set -euo pipefail
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+# Resolve symlinks (the installed command is a symlink into this folder).
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+cd "$DIR"
+
+if [ -x "$DIR/.venv/bin/python" ]; then
+  PY="$DIR/.venv/bin/python"
+else
+  PY="python3"
+fi
+
+exec "$PY" -m board "$@"

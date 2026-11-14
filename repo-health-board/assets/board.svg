@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Repo Health Board</title>
+  <rect x="8" y="8" width="240" height="240" rx="48" fill="#23262b" stroke="#3a3e44" stroke-width="4"/>
+  <!-- the board: a panel with three repo rows -->
+  <rect x="40" y="36" width="176" height="184" rx="20" fill="#2e3238" stroke="#4a4f56" stroke-width="4"/>
+  <rect x="60" y="60" width="104" height="26" rx="8" fill="#4a4f56"/>
+  <rect x="60" y="108" width="104" height="26" rx="8" fill="#4a4f56"/>
+  <rect x="60" y="156" width="104" height="26" rx="8" fill="#4a4f56"/>
+  <!-- status dots: healthy rows -->
+  <circle cx="188" cy="73" r="9" fill="#43a047"/>
+  <circle cx="188" cy="121" r="9" fill="#43a047"/>
+  <!-- health check badge -->
+  <circle cx="192" cy="192" r="36" fill="#43a047" stroke="#23262b" stroke-width="8"/>
+  <path d="M172 192 L186 206 L214 176" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

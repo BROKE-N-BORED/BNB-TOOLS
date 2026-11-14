@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Repo Health Board flag piece - run with: bash board-flag [--in FILE]
+#   bash board-flag --help
+#   bash board-flag
+# Reads repos.json (from board-fetch) and writes flagged.json + board.txt.
+set -euo pipefail
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+# Resolve symlinks (the installed command is a symlink into this folder).
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+cd "$DIR"
+
+if [ ! -d "$DIR/board" ]; then
+  echo "Repo Health Board is not installed (no board folder in $DIR)." >&2
+  exit 2
+fi
+
+if [ -x "$DIR/.venv/bin/python" ]; then
+  PY="$DIR/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+  PY="python3"
+else
+  echo "Python 3 is not installed, so Repo Health Board cannot run." >&2
+  exit 2
+fi
+
+exec "$PY" -m board.flag "$@"
