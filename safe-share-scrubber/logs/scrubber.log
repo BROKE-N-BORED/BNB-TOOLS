@@ -1,3 +1,0 @@
-2026-11-14 10:47:43 [INFO] ACTION: added file sample.log
-2026-11-14 10:47:43 [INFO] ACTION: scrub started for 1 file(s)
-2026-11-14 10:47:43 [INFO] ACTION: scrubbed sample.log: 5 finding(s) (AWS access key, Bearer token, GitHub token, Password in URL, Password or secret in assignment)
