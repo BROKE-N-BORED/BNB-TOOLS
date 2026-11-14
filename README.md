@@ -1,8 +1,8 @@
 # BNB TOOLS
 
-Working scripts and CLIs: the executable halves of BNB SKILLS playbooks, plus standalone utilities. Where a skill is a playbook an agent follows, a tool is a script the agent runs. Each tool is a folder with its own README and a `--help` flag.
+Working scripts and CLIs: the executable halves of BNB SKILLS playbooks, plus standalone utilities — and, since 2026-11-13, standalone PROJECTS spun off from chat threads as ideas (Joshua, 2026-11-13 23:39: BNB-TOOLS is also for projects, like WinLinx — surfacing ideas from the threads and building them, almost like the dream feature). Where a skill is a playbook an agent follows, a tool is a script the agent runs, or a full program the user runs. Each tool is a folder with its own README; a script or CLI tool answers `--help` with its usage.
 
-Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats read: main chat plus 66 side chats, 73 raw workflow candidates deduped to 52 skills and 17 tools). First delta scan the same evening (scan window ~17:54–19:00 EST) added 3 more tools (T18–T20) and an update to T11. T21 (debug-log-layer) was added later the same evening from his main-chat order for a debug layer in every project build. Second delta scan (2026-11-13, window ~19:13 EST 2026-11-12 → ~10:00 EST) added 2 more tools (T22–T23) and updates to 3 tool READMEs. Third delta scan the same evening (2026-11-13, window ~10:00–19:53 EST) added 2 more tools (T24–T25) and updates to 3 tool READMEs. The companion repo, BNB SKILLS, holds the playbooks these tools pair with.
+Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats read: main chat plus 66 side chats, 73 raw workflow candidates deduped to 52 skills and 17 tools). First delta scan the same evening (scan window ~17:54–19:00 EST) added 3 more tools (T18–T20) and an update to T11. T21 (debug-log-layer) was added later the same evening from his main-chat order for a debug layer in every project build. Second delta scan (2026-11-13, window ~19:13 EST 2026-11-12 → ~10:00 EST) added 2 more tools (T22–T23) and updates to 3 tool READMEs. Third delta scan the same evening (2026-11-13, window ~10:00–19:53 EST) added 2 more tools (T24–T25) and updates to 3 tool READMEs. Fifth delta scan the same evening (2026-11-13, window ~20:24–23:17 EST) added no new tools and changed the definition of a tool: BNB-TOOLS now also holds standalone projects spun off from threads, and the sweep collects spin-off candidates each delta (7 in Delta 5). The companion repo, BNB SKILLS, holds the playbooks these tools pair with.
 
 ## Requirements
 
@@ -13,7 +13,7 @@ Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats rea
 ## How to run a tool
 
 - Each folder has its own README. Read it first.
-- Every tool answers `--help` with its usage, flags, and an example.
+- Every script or CLI tool answers `--help` with its usage, flags, and an example. A spun-off project tool is run the way its own README says.
 - Run from the tool's own folder unless its README says otherwise.
 
 ## Smoke tests
