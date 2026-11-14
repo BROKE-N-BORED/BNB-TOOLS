@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Song Key BPM</title>
+  <rect x="8" y="8" width="240" height="240" rx="48" fill="#23262b" stroke="#3a3e44" stroke-width="4"/>
+  <!-- eighth note: the song -->
+  <ellipse cx="82" cy="66" rx="15" ry="11" fill="#e8a33d" transform="rotate(-20 82 66)"/>
+  <rect x="93" y="22" width="7" height="46" fill="#e8a33d"/>
+  <path d="M100 22 C 86 26 78 36 80 48 C 88 40 94 34 100 32 Z" fill="#e8a33d"/>
+  <!-- gauge arc: the BPM dial -->
+  <path d="M 52 168 A 76 76 0 0 1 204 168" fill="none" stroke="#e8a33d" stroke-width="10" stroke-linecap="round"/>
+  <!-- gauge ticks -->
+  <line x1="66" y1="168" x2="58" y2="168" stroke="#b0b0b0" stroke-width="5" stroke-linecap="round"/>
+  <line x1="84" y1="124" x2="79" y2="119" stroke="#b0b0b0" stroke-width="5" stroke-linecap="round"/>
+  <line x1="128" y1="106" x2="128" y2="98" stroke="#b0b0b0" stroke-width="5" stroke-linecap="round"/>
+  <line x1="172" y1="124" x2="177" y2="119" stroke="#b0b0b0" stroke-width="5" stroke-linecap="round"/>
+  <line x1="190" y1="168" x2="198" y2="168" stroke="#b0b0b0" stroke-width="5" stroke-linecap="round"/>
+  <!-- needle -->
+  <line x1="128" y1="168" x2="170" y2="126" stroke="#e8e8e8" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="128" cy="168" r="10" fill="#e8e8e8"/>
+</svg>
