@@ -1,0 +1,17 @@
+# Codex profile for local Ollama (BNB-TOOLS T29, codex-on-ollama).
+# Written by codex_ollama.py setup to ~/.codex/bnb-ollama.config.toml.
+# Profile name: bnb-ollama. It does not fight the ollama-launch
+# profile, which ollama launch codex writes under its own name.
+# No API key anywhere: Ollama runs on this PC at localhost.
+# The model line is filled in by setup. The context line is 65536
+# by default; setup rewrites it when --context is given.
+
+model = "__MODEL__"
+model_provider = "bnb-ollama"
+model_context_window = 65536
+
+[model_providers.bnb-ollama]
+name = "BNB Ollama"
+base_url = "http://localhost:11434/v1/"
+wire_api = "responses"
+stream_idle_timeout_ms = 120000
