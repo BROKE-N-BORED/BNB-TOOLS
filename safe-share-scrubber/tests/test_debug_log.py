@@ -46,9 +46,9 @@ class DebugLogWiringTests(unittest.TestCase):
         logger = cli.make_logger()
         try:
             self.assertEqual(logger.app_name, "safe-share-scrubber")
-            self.assertEqual(logger.version, "0.1.0")
+            self.assertEqual(logger.version, "0.2.0")
             self.assertEqual(logger.settings.get("app_version"),
-                             "0.1.0")
+                             "0.2.0")
             self.assertIn("network and services", logger.services)
             status = logger.services["network and services"]()
             self.assertIn("no network and no services", status)
@@ -62,7 +62,7 @@ class DebugLogWiringTests(unittest.TestCase):
                 os.environ["XDG_CONFIG_HOME"] = old
 
     def test_report_filename_uses_app_name(self):
-        logger = DebugLogger("safe-share-scrubber", "0.1.0",
+        logger = DebugLogger("safe-share-scrubber", "0.2.0",
                              log_dir=self.log_dir)
         name = logger.report_filename()
         self.assertTrue(
@@ -70,22 +70,22 @@ class DebugLogWiringTests(unittest.TestCase):
         self.assertTrue(name.endswith(".txt"))
 
     def test_report_carries_context_and_no_services(self):
-        logger = DebugLogger("safe-share-scrubber", "0.1.0",
+        logger = DebugLogger("safe-share-scrubber", "0.2.0",
                              log_dir=self.log_dir)
-        logger.set_setting("app_version", "0.1.0")
+        logger.set_setting("app_version", "0.2.0")
         logger.register_service(
             "network and services",
             lambda: "none: this app has no network and no services")
         text = logger.build_report()
-        self.assertIn("safe-share-scrubber 0.1.0", text)
-        self.assertIn("app_version: 0.1.0", text)
+        self.assertIn("safe-share-scrubber 0.2.0", text)
+        self.assertIn("app_version: 0.2.0", text)
         self.assertIn("no network and no services", text)
         self.assertIn("== Context ==", text)
         self.assertIn("== Recent actions", text)
         self.assertIn("== Errors ==", text)
 
     def test_crash_hook_writes_a_report(self):
-        logger = DebugLogger("safe-share-scrubber", "0.1.0",
+        logger = DebugLogger("safe-share-scrubber", "0.2.0",
                              log_dir=self.log_dir)
         previous = sys.excepthook
         sys.excepthook = lambda *args: None
@@ -111,7 +111,7 @@ class LogScrubTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.log_dir = os.path.join(self.tmp.name, "logs")
-        self.logger = DebugLogger("safe-share-scrubber", "0.1.0",
+        self.logger = DebugLogger("safe-share-scrubber", "0.2.0",
                                   log_dir=self.log_dir)
 
     def tearDown(self):

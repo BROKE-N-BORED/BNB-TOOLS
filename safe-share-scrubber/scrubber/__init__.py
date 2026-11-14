@@ -6,6 +6,6 @@ back a safe copy plus a short report. The original file is never
 changed.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __app_name__ = "safe-share-scrubber"
 __display_name__ = "Safe Share Scrubber"

@@ -2,6 +2,7 @@
 zip exec bits, CLI symlink resolution, SVG icon, no binaries,
 no em-dashes in packaging text."""
 
+import ast
 import configparser
 import os
 import shutil
@@ -15,8 +16,10 @@ import zipfile
 TREE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 SHELL_SCRIPTS = ("install.sh", "run.sh", "scrubber-cli",
+                 "safe-share-scrub", "safe-share-verify",
                  "uninstall.sh")
 EXEC_IN_ZIP = {"install.sh", "run.sh", "scrubber-cli",
+               "safe-share-scrub", "safe-share-verify",
                "uninstall.sh", "run_tests.sh", "build_zip.py",
                "render_icons.py"}
 
@@ -24,7 +27,8 @@ EXEC_IN_ZIP = {"install.sh", "run.sh", "scrubber-cli",
 # and the other tests, so hygiene sweeps that would fail on their
 # files stay scoped to these.
 PACKAGING_FILES = (
-    "install.sh", "run.sh", "scrubber-cli", "uninstall.sh",
+    "install.sh", "run.sh", "scrubber-cli",
+    "safe-share-scrub", "safe-share-verify", "uninstall.sh",
     "build_zip.py", "render_icons.py",
     "Install Safe Share Scrubber.desktop",
     "safe-share-scrubber.desktop",
@@ -225,6 +229,12 @@ class ZipTests(unittest.TestCase):
                 os.path.join(extract, "run.sh"), os.X_OK))
             self.assertTrue(os.access(
                 os.path.join(extract, "scrubber-cli"), os.X_OK))
+            self.assertTrue(os.access(
+                os.path.join(extract, "safe-share-scrub"),
+                os.X_OK))
+            self.assertTrue(os.access(
+                os.path.join(extract, "safe-share-verify"),
+                os.X_OK))
 
     def test_default_output_lands_outside_folder(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -236,7 +246,7 @@ class ZipTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0,
                              proc.stdout + proc.stderr)
             expected = os.path.join(
-                tmp, "safe-share-scrubber-v0.1.0.zip")
+                tmp, "safe-share-scrubber-v0.2.0.zip")
             self.assertTrue(os.path.exists(expected), expected)
             self.assertEqual(
                 [f for f in os.listdir(copy)
@@ -255,22 +265,91 @@ class ZipTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
-    def test_wrapper_resolves_installed_symlink(self):
-        # Regression: the installed command is a symlink in
-        # ~/.local/bin; the wrapper must resolve it and find the
-        # app folder, or the import dies with ModuleNotFoundError.
+    WRAPPERS = (("scrubber-cli", "safe-share-scrubber"),
+                ("safe-share-scrub", "safe-share-scrub"),
+                ("safe-share-verify", "safe-share-verify"))
+
+    def test_wrappers_resolve_installed_symlinks(self):
+        # Regression: the installed commands are symlinks in
+        # ~/.local/bin; each wrapper must resolve its link and
+        # find the app folder, or the import dies with
+        # ModuleNotFoundError. Run through bash: the clone
+        # simulation has every file 100644, and bash still proves
+        # the resolution logic.
         with tempfile.TemporaryDirectory() as tmp:
             bindir = os.path.join(tmp, "bin")
             os.mkdir(bindir)
-            link = os.path.join(bindir, "safe-share-scrubber")
-            os.symlink(os.path.join(TREE, "scrubber-cli"), link)
-            proc = subprocess.run(
-                [link, "--help"], cwd=tmp,
-                capture_output=True, text=True, timeout=120)
-            self.assertEqual(proc.returncode, 0,
-                             proc.stdout + proc.stderr)
-            self.assertNotIn("ModuleNotFoundError", proc.stderr)
-            self.assertTrue(proc.stdout.strip())
+            for wrapper, link_name in self.WRAPPERS:
+                link = os.path.join(bindir, link_name)
+                os.symlink(os.path.join(TREE, wrapper), link)
+                proc = subprocess.run(
+                    ["bash", link, "--help"], cwd=tmp,
+                    capture_output=True, text=True, timeout=120)
+                self.assertEqual(proc.returncode, 0,
+                                 "%s: %s" % (link_name,
+                                             proc.stdout
+                                             + proc.stderr))
+                self.assertNotIn("ModuleNotFoundError",
+                                 proc.stderr)
+                self.assertTrue(proc.stdout.strip(), link_name)
+
+    def test_install_and_uninstall_cover_all_three_cli_symlinks(
+            self):
+        with open(os.path.join(TREE, "install.sh"),
+                  encoding="utf-8") as fh:
+            install = fh.read()
+        with open(os.path.join(TREE, "uninstall.sh"),
+                  encoding="utf-8") as fh:
+            uninstall = fh.read()
+        for wrapper, link_name in self.WRAPPERS:
+            self.assertIn(
+                'ln -sf "$DIR/%s" "$HOME/.local/bin/%s"'
+                % (wrapper, link_name), install)
+            self.assertIn(
+                'rm -f "$HOME/.local/bin/%s"' % link_name,
+                uninstall)
+
+
+class GuiImportBanTests(unittest.TestCase):
+    # The GUI is a thin viewer: it runs the CLI as a subprocess
+    # and must never import the engine, the report builder, the
+    # CLI, or the verify scanner. Follows the T30 pattern: parse
+    # gui.py with ast and check the real imports.
+    BANNED = {"scrubber.core", "scrubber.report", "scrubber.cli",
+              "scrubber.verify"}
+
+    def _imports_of(self, path):
+        with open(path, encoding="utf-8") as fh:
+            tree = ast.parse(fh.read(), path)
+        found = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    found.add(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module is None:
+                    continue
+                if node.level:
+                    # A relative import: resolve against the
+                    # scrubber package (gui.py lives in scrubber/).
+                    found.add("scrubber." + node.module)
+                else:
+                    found.add(node.module)
+        return found
+
+    def test_gui_py_import_ban(self):
+        imports = self._imports_of(
+            os.path.join(TREE, "scrubber", "gui.py"))
+        banned = imports & self.BANNED
+        self.assertEqual(banned, set(),
+                         "gui.py imports banned modules: %s"
+                         % sorted(banned))
+
+    def test_gui_py_does_import_logsetup_and_settings(self):
+        imports = self._imports_of(
+            os.path.join(TREE, "scrubber", "gui.py"))
+        self.assertIn("scrubber.logsetup", imports)
+        self.assertIn("scrubber.settings", imports)
 
 
 class TreeHygieneTests(unittest.TestCase):
@@ -308,6 +387,7 @@ class TreeHygieneTests(unittest.TestCase):
         # README and the other packaging strings the user sees.
         for name in ("README.md", "CHANGELOG.md", "install.sh",
                      "run.sh", "uninstall.sh", "scrubber-cli",
+                     "safe-share-scrub", "safe-share-verify",
                      "Install Safe Share Scrubber.desktop",
                      "safe-share-scrubber.desktop"):
             path = os.path.join(TREE, name)

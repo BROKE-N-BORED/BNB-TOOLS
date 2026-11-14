@@ -146,7 +146,7 @@ class CliTests(unittest.TestCase):
         self.assertIn(reports[0], proc.stdout)
         content = Path(reports[0]).read_text(encoding="utf-8")
         self.assertIn("safe-share-scrubber", content)
-        self.assertIn("app_version: 0.1.0", content)
+        self.assertIn("app_version: 0.2.0", content)
         self.assertIn("no network and no services", content)
 
     def test_debug_report_out_flag(self):

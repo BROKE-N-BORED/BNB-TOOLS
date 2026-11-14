@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build safe-share-scrubber-v0.1.0.zip for verification / release.
+"""Build safe-share-scrubber-v0.2.0.zip for verification / release.
 
 Correct exec bits via external_attr: 0o100755 for scripts, 0o100644
 for plain files. Bare 0o755 (no file-type bits) extracts fine under
@@ -22,9 +22,10 @@ import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-ZIP_NAME = "safe-share-scrubber-v0.1.0.zip"
+ZIP_NAME = "safe-share-scrubber-v0.2.0.zip"
 
-SCRIPTS = {"install.sh", "run.sh", "scrubber-cli", "uninstall.sh",
+SCRIPTS = {"install.sh", "run.sh", "scrubber-cli",
+           "safe-share-scrub", "safe-share-verify", "uninstall.sh",
            "run_tests.sh", "build_zip.py", "render_icons.py"}
 
 SKIP_DIRS = {"__pycache__", ".forge", ".venv", "venv", ".git", "logs"}

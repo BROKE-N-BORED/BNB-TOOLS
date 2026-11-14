@@ -1,16 +1,31 @@
-"""Qt GUI for Safe Share Scrubber.
+"""Qt GUI for Safe Share Scrubber. A THIN viewer: it does no
+scrubbing and no verifying itself. It runs `python -m scrubber
+scrub --json` and `python -m scrubber verify --json` as
+subprocesses in a worker thread, parses the JSON the CLI prints,
+and displays the results. The report pane shows the report text
+by reading the report file the CLI wrote, so the CLI is the one
+source of truth for displayed text.
+
+Import rule (enforced by a test that parses this file with ast):
+this module must NOT import scrubber.core, scrubber.report,
+scrubber.cli, or scrubber.verify. It imports Qt, scrubber.settings,
+scrubber.logsetup (for make_logger), and the standard library
+only. The GUI logs no user-supplied text, only counts and exit
+codes, so it needs no safe_log_text.
 
 One main window: a file list on the left, the report on the right.
 Drop files in, press Scrub, get a safe copy of each file plus a
-short report. Scrubbing runs in a worker thread; the window never
-blocks. Single instance via QLockFile. Geometry is remembered
-between runs.
+short report; press Verify to scan without writing anything.
+Runs happen in a worker thread; the window never blocks. Single
+instance via QLockFile. Geometry is remembered between runs.
 
 Visible text rules (design rules U11, U33): no em-dashes anywhere,
 no bare & in any label. Keep it that way when editing strings.
 """
 
+import json
 import os
+import subprocess
 import sys
 
 from PySide6.QtCore import (QByteArray, QEvent, QLockFile, Qt, QThread,
@@ -22,15 +37,33 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout,
                                QSplitter, QStatusBar, QTextEdit,
                                QVBoxLayout, QWidget)
 
-from . import core
-from . import report as report_mod
-from .cli import make_logger, safe_log_text
-from .report import CAVEAT_TEXT
+from .logsetup import make_logger
 from .settings import Settings, cache_dir
 
 APP_DISPLAY_NAME = "Safe Share Scrubber"
 DEFAULT_WIDTH = 1000
 DEFAULT_HEIGHT = 620
+
+# The honest caveat, in plain words. It also appears as a label in
+# the window and in the How to Use window. Kept word for word with
+# report.py's copy; the GUI cannot import report, so the text lives
+# here too. If the wording ever changes, change both copies.
+CAVEAT_TEXT = (
+    "This scrubber works from patterns. It can only catch secrets "
+    "it has a pattern for, so it cannot prove a file holds no "
+    "secret it does not know about. Read the safe copy before you "
+    "share it."
+)
+
+# The honest caveat for verify, in plain words: the same warning
+# as CAVEAT_TEXT, minus the safe-copy sentence, because verify
+# writes no safe copy. Kept word for word with cli.VERIFY_CAVEAT;
+# the GUI cannot import cli, so the text lives here too.
+VERIFY_CAVEAT = (
+    "This scanner works from patterns. It can only catch secrets "
+    "it has a pattern for, so it cannot prove a file holds no "
+    "secret it does not know about."
+)
 
 DARK_STYLESHEET = """
 QMainWindow, QWidget { background-color: #23262b; color: #e8e8e8;
@@ -61,6 +94,13 @@ QStatusBar { background-color: #1a1d21; color: #c8c8c8; }
 """
 
 
+def package_root():
+    """The folder holding the scrubber package: the subprocess runs
+    there so `python -m scrubber` finds the package."""
+    return os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))
+
+
 def lock_file_path():
     return os.path.join(cache_dir(), "single-instance.lock")
 
@@ -77,41 +117,133 @@ def try_single_instance():
     return None
 
 
-class ScrubWorker(QThread):
-    """Scrub files in a worker thread. Never blocks the UI."""
+class CliWorker(QThread):
+    """Run one CLI command (`scrub --json` or `verify --json`) in a
+    worker thread. Never blocks the UI.
 
-    done = Signal(list)
-    failed = Signal(str)
+    done carries the parsed JSON result list plus the CLI exit
+    code. A nonzero exit is not a failure on its own: verify exits
+    1 when it finds a secret, and scrub exits 1 when one file in
+    a batch fails, and both still print good JSON. failed carries
+    a display message plus the exit code (-1 when the process never
+    started). Cancel kills the subprocess outright (SIGKILL), it
+    does not just abandon it.
+    """
+
+    done = Signal(list, int)
+    failed = Signal(str, int)
     cancelled = Signal()
 
-    def __init__(self, paths, parent=None):
+    def __init__(self, command, paths, parent=None):
         super().__init__(parent)
+        self._command = command
         self._paths = list(paths)
         self._cancelled = False
+        self._proc = None
 
     def cancel(self):
         self._cancelled = True
+        proc = self._proc
+        if proc is not None and proc.poll() is None:
+            # SIGKILL: the run stops now, not when the CLI gets
+            # around to noticing.
+            proc.kill()
 
     def run(self):
+        root = package_root()
+        env = dict(os.environ)
+        path = env.get("PYTHONPATH")
+        env["PYTHONPATH"] = root if not path else root + os.pathsep + path
+        argv = [sys.executable, "-m", "scrubber", self._command,
+                "--json"] + self._paths
         try:
-            results = []
-            for path in self._paths:
-                if self._cancelled:
-                    self.cancelled.emit()
-                    return
-                result = core.scrub_file(path)
-                if result.get("safe_path") or result.get("skipped"):
-                    try:
-                        report_mod.write_report_file(result)
-                    except OSError as exc:
-                        result["report_error"] = str(exc)
-                results.append(result)
-            self.done.emit(results)
+            self._proc = subprocess.Popen(
+                argv, cwd=root, env=env, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True)
+        except OSError as exc:
+            self.failed.emit("Could not start the command: %s"
+                             % exc, -1)
+            return
+        try:
+            stdout, stderr = self._proc.communicate()
         except Exception as exc:  # never let the thread die silently
-            if not self._cancelled:
-                self.failed.emit("Scrubbing failed: %s" % exc)
-            else:
+            if self._cancelled:
                 self.cancelled.emit()
+            else:
+                self.failed.emit("The command failed: %s" % exc,
+                                 -1)
+            return
+        if self._cancelled:
+            self.cancelled.emit()
+            return
+        exit_code = self._proc.returncode
+        try:
+            results = json.loads(stdout)
+        except ValueError:
+            detail = stderr.strip().splitlines()
+            detail = detail[-1] if detail else "no output"
+            self.failed.emit(
+                "The %s command failed (exit %d): %s"
+                % (self._command, exit_code, detail[:200]),
+                exit_code)
+            return
+        if not isinstance(results, list):
+            self.failed.emit(
+                "The %s command printed unexpected output "
+                "(exit %d)" % (self._command, exit_code),
+                exit_code)
+            return
+        self.done.emit(results, exit_code)
+
+
+def _group_findings(findings):
+    """Findings grouped by kind, each with its sorted line list."""
+    grouped = {}
+    for finding in findings:
+        grouped.setdefault(finding["kind"], []).append(
+            finding["line"])
+    return {kind: sorted(lines) for kind, lines in grouped.items()}
+
+
+def _lines_text(lines):
+    if len(lines) == 1:
+        return "line %d" % lines[0]
+    return "lines %s" % ", ".join(str(n) for n in lines)
+
+
+def build_verify_display(results):
+    """The verify display text, built from the parsed JSON. Verify
+    writes no report file, so the window formats the findings
+    itself: file, secrets by kind with line numbers, and a plain
+    verdict line. Findings carry kind and line only, never a
+    secret value."""
+    parts = []
+    for result in results:
+        out = []
+        out.append("File: %s" % result["path"])
+        if result.get("error"):
+            out.append("Could not scan this file: %s"
+                       % result["error"])
+            out.append("Verdict: Not scanned")
+        elif result.get("skipped_reason"):
+            out.append("Skipped: %s." % result["skipped_reason"])
+            out.append("Verdict: Not scanned")
+        else:
+            findings = result.get("findings") or []
+            out.append("Secrets found: %d" % len(findings))
+            for kind, lines in sorted(
+                    _group_findings(findings).items()):
+                out.append("  %s: %s" % (kind, _lines_text(lines)))
+            if not findings:
+                out.append("  None.")
+            if findings:
+                out.append("Verdict: Not safe to share: "
+                           "secrets found")
+            else:
+                out.append("Verdict: Safe to share")
+        parts.append("\n".join(out) + "\n")
+    parts.append(VERIFY_CAVEAT + "\n")
+    return "\n".join(parts)
 
 
 HOW_TO_USE_TEXT = """How to use Safe Share Scrubber
@@ -120,18 +252,22 @@ HOW_TO_USE_TEXT = """How to use Safe Share Scrubber
    Add files. Any file works. Binary files are skipped and the
    report says so.
 
-2. Press Scrub. Each file gets a safe copy next to it, with
-   ".safe" in the name, and a short report file. Your original
-   file is never changed.
+2. Press Verify to check the files without changing anything. It
+   lists the secrets found, by kind and line number, and writes
+   no files at all.
 
-3. Read the report on the right. It lists the secrets found, by
+3. Press Scrub to redact what was found. Each file gets a safe
+   copy next to it, with ".safe" in the name, and a short report
+   file. Your original file is never changed.
+
+4. Read the report on the right. It lists the secrets found, by
    kind and line number. It never shows the secret itself.
 
-4. Share the safe copy, not the original. The safe copy has every
+5. Share the safe copy, not the original. The safe copy has every
    secret the scrubber found replaced with a marker like
    [REDACTED AWS KEY].
 
-5. Debug report: File, Generate debug report writes a file you
+6. Debug report: File, Generate debug report writes a file you
    can send to broke.n.bored.studio@gmail.com if something breaks.
 
 %s
@@ -166,8 +302,9 @@ class MainWindow(QMainWindow):
         self.logger = logger or make_logger()
         self.logger.install_crash_handler()
         self.files = []           # absolute paths, in list order
-        self._results = {}        # path -> last scrub_file result
+        self._results = {}        # path -> last result dict
         self._worker = None
+        self._run_mode = None     # "scrub" or "verify", while running
         self._how_to_use = None
         self._shown_once = False
         self._user_selecting = False
@@ -212,6 +349,14 @@ class MainWindow(QMainWindow):
         self.scrub_button.setObjectName("scrubButton")
         self.scrub_button.clicked.connect(self._on_scrub)
         button_row.addWidget(self.scrub_button)
+        self.verify_button = QPushButton("Verify", left)
+        self.verify_button.setObjectName("verifyButton")
+        self.verify_button.clicked.connect(self._on_verify)
+        button_row.addWidget(self.verify_button)
+        self.cancel_button = QPushButton("Cancel", left)
+        self.cancel_button.setObjectName("cancelButton")
+        self.cancel_button.clicked.connect(self._on_cancel)
+        button_row.addWidget(self.cancel_button)
         left_layout.addLayout(button_row)
 
         right = QWidget(splitter)
@@ -220,7 +365,8 @@ class MainWindow(QMainWindow):
         self.report_text.setObjectName("reportText")
         self.report_text.setReadOnly(True)
         self.report_text.setPlaceholderText(
-            "The report appears here after you press Scrub.")
+            "The report appears here after you press Scrub "
+            "or Verify.")
         right_layout.addWidget(self.report_text, 1)
         self.caveat_label = QLabel(CAVEAT_TEXT, right)
         self.caveat_label.setObjectName("caveatLabel")
@@ -253,6 +399,9 @@ class MainWindow(QMainWindow):
         scrub_action = QAction("Scrub", self)
         scrub_action.triggered.connect(self._on_scrub)
         file_menu.addAction(scrub_action)
+        verify_action = QAction("Verify", self)
+        verify_action.triggered.connect(self._on_verify)
+        file_menu.addAction(verify_action)
         report_action = QAction("Generate debug report", self)
         report_action.triggered.connect(self._on_debug_report)
         file_menu.addAction(report_action)
@@ -327,19 +476,19 @@ class MainWindow(QMainWindow):
             self.files.append(full)
             self.file_list.addItem(QListWidgetItem(""))
             added += 1
-            self.logger.action("added file %s"
-                               % safe_log_text(
-                                   os.path.basename(path)))
         self._refresh_list()
         self._update_buttons()
         self.empty_label.setVisible(not self.files)
+        # Counts only: the GUI logs no user-supplied text.
+        if added:
+            self.logger.action("added %d file(s)" % added)
         if failures:
+            self.logger.warning("could not read %d file(s)"
+                                % len(failures))
             lines = ["Could not read these files:"]
             for path, reason in failures:
                 lines.append("%s: %s"
                              % (os.path.basename(path), reason))
-                self.logger.warning("could not read %s: %s",
-                                    safe_log_text(path), reason)
             QMessageBox.information(self, "Some files could not "
                                     "be read", "\n".join(lines))
         return added, failures
@@ -353,19 +502,26 @@ class MainWindow(QMainWindow):
                 item.setText(name)
             elif result.get("error"):
                 item.setText("%s: could not read" % name)
-            elif result.get("skipped"):
+            elif result.get("skipped") or result.get("skipped_reason"):
                 item.setText("%s: skipped, binary file" % name)
             elif result["secrets_found"]:
-                item.setText("%s: %d secret(s) redacted"
-                             % (name, result["secrets_found"]))
+                if result.get("mode") == "verify":
+                    item.setText("%s: %d secret(s) found"
+                                 % (name, result["secrets_found"]))
+                else:
+                    item.setText("%s: %d secret(s) redacted"
+                                 % (name, result["secrets_found"]))
             else:
                 item.setText("%s: no secrets found" % name)
 
     def _update_buttons(self):
-        scrubbing = self._worker is not None
+        running = self._worker is not None
         self.scrub_button.setEnabled(bool(self.files)
-                                     and not scrubbing)
-        self.add_button.setEnabled(not scrubbing)
+                                     and not running)
+        self.verify_button.setEnabled(bool(self.files)
+                                      and not running)
+        self.add_button.setEnabled(not running)
+        self.cancel_button.setEnabled(running)
 
     def _set_busy(self, busy, message=None):
         self.busy_light.setProperty("busy", busy)
@@ -375,62 +531,126 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage(message)
         self._update_buttons()
 
-    # -- scrub --------------------------------------------------------
-    def _on_scrub(self):
+    # -- scrub and verify ---------------------------------------------
+    def _start_run(self, mode):
         if not self.files or self._worker is not None:
             return
-        self.logger.action("scrub started for %d file(s)"
-                           % len(self.files))
-        self._worker = ScrubWorker(list(self.files), self)
-        self._worker.done.connect(self._on_scrub_done)
-        self._worker.failed.connect(self._on_scrub_failed)
-        self._worker.cancelled.connect(self._on_scrub_cancelled)
+        self._run_mode = mode
+        # Counts only: the GUI logs no user-supplied text.
+        self.logger.action("%s started for %d file(s)"
+                           % (mode, len(self.files)))
+        self._worker = CliWorker(mode, list(self.files), self)
+        self._worker.done.connect(self._on_run_done)
+        self._worker.failed.connect(self._on_run_failed)
+        self._worker.cancelled.connect(self._on_run_cancelled)
         self._worker.done.connect(self._worker.deleteLater)
         self._worker.failed.connect(self._worker.deleteLater)
         self._worker.cancelled.connect(self._worker.deleteLater)
-        self._set_busy(True, "Scrubbing...")
+        self._set_busy(True, "%s..." % mode.capitalize())
         self._worker.start()
 
-    def _on_scrub_done(self, results):
+    def _on_scrub(self):
+        self._start_run("scrub")
+
+    def _on_verify(self):
+        self._start_run("verify")
+
+    def _on_cancel(self):
+        if self._worker is not None:
+            self._worker.cancel()
+
+    def _read_scrub_reports(self, results):
+        """The report pane text for a scrub run: the report files
+        the CLI wrote, read back. The CLI is the one source of
+        truth for displayed text; a result with no report file
+        (unreadable, or the report write failed) gets one plain
+        line from the JSON instead."""
+        texts = []
+        for result in results:
+            report_path = result.get("report_path")
+            text = None
+            if report_path:
+                try:
+                    with open(report_path, encoding="utf-8") as fh:
+                        text = fh.read()
+                except OSError:
+                    text = None
+            if text is None:
+                if result.get("error"):
+                    text = ("File: %s\nCould not read or write "
+                            "this file: %s\nNo safe copy was "
+                            "written.\nVerdict: %s\n"
+                            % (result["path"], result["error"],
+                               result.get("verdict") or ""))
+                else:
+                    text = ("File: %s\nNo report file was "
+                            "written.\nVerdict: %s\n"
+                            % (result["path"],
+                               result.get("verdict") or ""))
+            texts.append(text)
+        return "\n".join(texts)
+
+    def _on_run_done(self, results, exit_code):
+        mode = self._run_mode
         self._worker = None
+        self._run_mode = None
         self._set_busy(False)
         total = 0
         skipped = 0
         for result in results:
+            result["mode"] = mode
             self._results[result["path"]] = result
             total += result["secrets_found"]
-            if result.get("skipped"):
+            if result.get("skipped") or result.get("skipped_reason"):
                 skipped += 1
-            kinds = sorted({f["kind"] for f in result["findings"]})
-            self.logger.action(
-                "scrubbed %s: %d finding(s)%s"
-                % (safe_log_text(os.path.basename(
-                    result["path"])),
-                    len(result["findings"]),
-                    (" (%s)" % ", ".join(kinds)) if kinds else ""))
+        # Counts and the exit code only: no user-supplied text.
+        self.logger.action(
+            "%s finished: exit %d, %d file(s), %d finding(s)"
+            % (mode, exit_code, len(results), total))
         self._refresh_list()
-        self.report_text.setPlainText(
-            report_mod.build_report(results))
-        if skipped:
-            self.status_bar.showMessage(
-                "Scrubbed %d file(s): %d secret(s) redacted, "
-                "%d skipped (binary)" % (len(results), total,
-                                         skipped))
+        if mode == "scrub":
+            self.report_text.setPlainText(
+                self._read_scrub_reports(results))
+            if skipped:
+                self.status_bar.showMessage(
+                    "Scrubbed %d file(s): %d secret(s) redacted, "
+                    "%d skipped (binary)" % (len(results), total,
+                                             skipped))
+            else:
+                self.status_bar.showMessage(
+                    "Scrubbed %d file(s): %d secret(s) redacted"
+                    % (len(results), total))
         else:
-            self.status_bar.showMessage(
-                "Scrubbed %d file(s): %d secret(s) redacted"
-                % (len(results), total))
+            self.report_text.setPlainText(
+                build_verify_display(results))
+            if skipped:
+                self.status_bar.showMessage(
+                    "Verified %d file(s): %d secret(s) found, "
+                    "%d not scanned" % (len(results), total,
+                                        skipped))
+            else:
+                self.status_bar.showMessage(
+                    "Verified %d file(s): %d secret(s) found"
+                    % (len(results), total))
 
-    def _on_scrub_failed(self, message):
+    def _on_run_failed(self, message, exit_code):
+        mode = self._run_mode
         self._worker = None
+        self._run_mode = None
         self._set_busy(False, "Ready")
         self.report_text.setPlainText(message)
-        self.logger.warning("scrub failed: %s", message)
+        # The exit code only: the message may carry CLI stderr,
+        # which can hold user-supplied text.
+        self.logger.warning("%s failed: exit %d"
+                            % (mode or "run", exit_code))
 
-    def _on_scrub_cancelled(self):
+    def _on_run_cancelled(self):
+        mode = self._run_mode
         self._worker = None
-        self._set_busy(False, "Scrub cancelled")
-        self.logger.action("scrub cancelled")
+        self._run_mode = None
+        self._set_busy(False, "%s cancelled"
+                        % (mode or "Run").capitalize())
+        self.logger.action("%s cancelled" % (mode or "run"))
 
     # -- menus --------------------------------------------------------
     def _on_add_files(self):

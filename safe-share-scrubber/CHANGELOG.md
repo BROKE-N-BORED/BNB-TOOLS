@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.2.0 - 2026-11-14
+
+Structural breakup only. Behavior is unchanged: the same eleven
+secret shapes, the same markers, the same reports, the same
+window.
+
+- The window is now a thin viewer. It does no scrubbing or
+  verifying itself: it runs the terminal commands and shows their
+  results, reading the report file the scrub command wrote. The
+  window and the terminal always agree.
+- New `verify` command: scan files without writing anything.
+  Exit 0 when clean, 1 when a secret is found, 2 when a file
+  could not be scanned. The window has a Verify button and menu
+  item for it.
+- New one-job commands: `safe-share-scrub` (scrub only) and
+  `safe-share-verify` (verify only). The full command
+  `safe-share-scrubber` still carries every subcommand.
+- `scrub` and `verify` both take `--json` to print the results
+  as JSON instead of the human report.
+- Cancel now stops the running command outright instead of
+  waiting for it to finish.
+
 ## v0.1.0 - 2026-11-14
 
 First release.

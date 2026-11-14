@@ -14,7 +14,10 @@ while [ -L "$SOURCE" ]; do
   [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
 done
 DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
-cd "$DIR"
+# Stay in the caller's directory: file arguments are
+# relative to where the command was run, not to the app
+# folder. The package is found through PYTHONPATH.
+export PYTHONPATH="$DIR${PYTHONPATH:+:$PYTHONPATH}"
 
 if [ -x "$DIR/.venv/bin/python" ]; then
   PY="$DIR/.venv/bin/python"

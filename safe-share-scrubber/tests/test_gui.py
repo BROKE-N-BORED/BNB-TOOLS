@@ -63,7 +63,7 @@ class GuiTests(unittest.TestCase):
         qsettings = QSettings(self.ini_path, QSettings.IniFormat)
         self.settings = Settings(qsettings)
         self.logger = DebugLogger(
-            "safe-share-scrubber", "0.1.0",
+            "safe-share-scrubber", "0.2.0",
             log_dir=os.path.join(self.tmp.name, "logs"))
         self.windows = []
         self.log = make_text_file(
@@ -174,6 +174,113 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(window.file_list.item(0).text(),
                          "clean.log: no secrets found")
 
+    def test_verify_button_shows_findings_and_writes_nothing(self):
+        window = self.make_window()
+        window.show()
+        window.add_files([self.log])
+        original = Path(self.log).read_bytes()
+        window.verify_button.click()
+        self.assertTrue(wait_until(
+            lambda: "Secrets found: 15" in
+            window.report_text.toPlainText(), timeout=15))
+        self.assertTrue(wait_until(
+            lambda: window._worker is None, timeout=15))
+        text = window.report_text.toPlainText()
+        self.assertIn("AWS access key: line 2", text)
+        self.assertIn("Verdict: Not safe to share: secrets found",
+                      text)
+        self.assertIn("Verified 1 file(s): 15 secret(s) found",
+                      window.status_bar.currentMessage())
+        self.assertEqual(window.file_list.item(0).text(),
+                         "debug.log: 15 secret(s) found")
+        self.assertFalse(window.busy_light.property("busy"))
+        # Verify writes nothing at all.
+        self.assertFalse(os.path.exists(
+            os.path.join(self.tmp.name, "debug.safe.log")))
+        self.assertFalse(os.path.exists(
+            os.path.join(self.tmp.name, "debug.safe-report.txt")))
+        self.assertEqual(Path(self.log).read_bytes(), original)
+
+    def test_verify_clean_file_reports_safe(self):
+        window = self.make_window()
+        window.show()
+        window.add_files([self.clean])
+        window.verify_button.click()
+        self.assertTrue(wait_until(
+            lambda: "Secrets found: 0" in
+            window.report_text.toPlainText(), timeout=15))
+        self.assertTrue(wait_until(
+            lambda: window._worker is None, timeout=15))
+        self.assertIn("Verdict: Safe to share",
+                      window.report_text.toPlainText())
+        self.assertEqual(window.file_list.item(0).text(),
+                         "clean.log: no secrets found")
+        self.assertFalse(os.path.exists(
+            os.path.join(self.tmp.name, "clean.safe.log")))
+
+    def test_verify_display_has_no_safe_copy_mention(self):
+        # Verify writes no safe copy, so its display carries the
+        # verify caveat (no safe-copy sentence), matching the CLI.
+        from scrubber.cli import VERIFY_CAVEAT
+        window = self.make_window()
+        window.show()
+        window.add_files([self.log])
+        window.verify_button.click()
+        self.assertTrue(wait_until(
+            lambda: window._worker is None, timeout=15))
+        text = window.report_text.toPlainText()
+        self.assertIn(VERIFY_CAVEAT, text)
+        self.assertNotIn("safe copy", text)
+
+    def test_verify_from_menu_runs_verify(self):
+        window = self.make_window()
+        window.show()
+        window.add_files([self.log])
+        for action in window.menuBar().actions():
+            if action.text() == "File":
+                for item in action.menu().actions():
+                    if item.text() == "Verify":
+                        item.trigger()
+        self.assertTrue(wait_until(
+            lambda: "Secrets found: 15" in
+            window.report_text.toPlainText(), timeout=15))
+        self.assertTrue(wait_until(
+            lambda: window._worker is None, timeout=15))
+
+    def test_cancel_kills_the_scrub_subprocess(self):
+        # A big file keeps the CLI subprocess busy for seconds, so
+        # Cancel has a real process to kill. The line is plain
+        # prose: no secrets in it.
+        line = ("2026-11-14 routine log line with ordinary words "
+                "and the number 12345\n")
+        big = make_text_file(
+            os.path.join(self.tmp.name, "big.log"),
+            line * 100000)
+        window = self.make_window()
+        window.show()
+        window.add_files([big])
+        window.scrub_button.click()
+        self.assertTrue(wait_until(
+            lambda: window._worker is not None
+            and window._worker._proc is not None
+            and window._worker._proc.poll() is None,
+            timeout=15))
+        proc = window._worker._proc
+        window.cancel_button.click()
+        self.assertTrue(wait_until(
+            lambda: window._worker is None, timeout=15))
+        # SIGKILL: the subprocess died by signal 9, it did not
+        # run to completion.
+        self.assertEqual(proc.returncode, -9)
+        self.assertFalse(window.busy_light.property("busy"))
+        self.assertIn("Scrub cancelled",
+                      window.status_bar.currentMessage())
+        # Killed mid-scrub: no safe copy, no report.
+        self.assertFalse(os.path.exists(
+            os.path.join(self.tmp.name, "big.safe.log")))
+        self.assertFalse(os.path.exists(
+            os.path.join(self.tmp.name, "big.safe-report.txt")))
+
     def test_busy_light_is_on_while_scrubbing(self):
         window = self.make_window()
         window.show()
@@ -216,6 +323,7 @@ class GuiTests(unittest.TestCase):
                                     action.menu().actions()]
         self.assertIn("Add files", found["File"])
         self.assertIn("Scrub", found["File"])
+        self.assertIn("Verify", found["File"])
         self.assertIn("Generate debug report", found["File"])
         self.assertIn("Quit", found["File"])
         self.assertIn("How to Use", found["Help"])

@@ -211,9 +211,12 @@ EOF
     fi
   fi
 
-  # Command line on PATH after install.
+  # Command line on PATH after install: the full command plus the
+  # two one-job commands.
   mkdir -p "$HOME/.local/bin"
   ln -sf "$DIR/scrubber-cli" "$HOME/.local/bin/safe-share-scrubber"
+  ln -sf "$DIR/safe-share-scrub" "$HOME/.local/bin/safe-share-scrub"
+  ln -sf "$DIR/safe-share-verify" "$HOME/.local/bin/safe-share-verify"
 
   if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$HOME/.local/share/applications" \

@@ -22,36 +22,101 @@ To remove it, run the uninstaller in the install folder
 (`uninstall.sh`). It removes the app, the menu entry, the desktop
 icon, and the logs folder. The app keeps nothing else of yours.
 
-## How to use
+## How to use the window
 
 1. **Add files:** drag text or log files onto the window, or use
    File, Add files. You can add several at once. Binary files are
    skipped and the report says so.
-2. **Press Scrub.** Each file gets a safe copy next to it, with
-   ".safe" in the name, and a short report file. Your original is
-   never changed or overwritten.
-3. **Read the report on the right.** It lists the secrets found,
+2. **Press Verify** to check the files without changing anything.
+   It lists the secrets found, by kind and line number, and
+   writes no files at all.
+3. **Press Scrub** to redact what was found. Each file gets a safe
+   copy next to it, with ".safe" in the name, and a short report
+   file. Your original is never changed or overwritten.
+4. **Read the report on the right.** It lists the secrets found,
    by kind and line number, and a plain verdict. It never shows
    the secret itself.
-4. **Share the safe copy, not the original.** The safe copy has
+5. **Share the safe copy, not the original.** The safe copy has
    every secret the scrubber found replaced with a marker like
    [REDACTED AWS KEY].
-5. **Read the safe copy once** before you share it. The plain
+6. **Read the safe copy once** before you share it. The plain
    truth above still applies.
 
 The How to Use window (Help menu) carries the same steps inside
 the app.
 
-## Command line
+## The chain: scrub, verify, view
 
-The command line works while the window is open:
+Each step is its own command and runs alone from the terminal.
+The window runs these same commands and shows their results, so
+the window and the terminal always agree.
+
+```
+safe-share-scrub file.txt      # scrub: redact, write the safe
+                               # copy and the report
+safe-share-verify file.txt     # verify: scan only, writes nothing.
+                               # Exit 0 when clean, 1 when a secret
+                               # is found, 2 when a file could not
+                               # be scanned
+```
+
+The full check in one line: scrub a file, then prove the safe
+copy reads clean:
+
+```
+safe-share-scrub file.txt && safe-share-verify file.safe.log
+```
+
+The full command carries every subcommand, and works while the
+window is open:
 
 ```
 safe-share-scrubber scrub file.txt
+safe-share-scrubber verify file.txt
 safe-share-scrubber debug-report
 ```
 
-`safe-share-scrubber --help` lists every option.
+`safe-share-scrubber --help` lists every option. Both `scrub`
+and `verify` take `--json` to print the results as JSON instead
+of the human report.
+
+## What it catches
+
+Eleven secret shapes, each replaced with a labeled marker:
+
+1. AWS access keys
+2. JSON Web Tokens (JWTs)
+3. Private keys, PEM blocks including OpenSSH headers, spanning
+   several lines
+4. GitHub tokens (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`,
+   `github_pat_`)
+5. Slack tokens
+6. Google API keys
+7. Bearer tokens (the word Bearer stays, the token goes)
+8. Passwords and secrets in assignment form, like `password = ...`
+   or `"password": "..."` in JSON (the key name stays)
+9. Passwords in URLs, like `https://user:password@host` (the user
+   and host stay)
+10. Secrets in URL query strings, like `?api_key=...` (the
+    parameter name stays)
+11. Bare high-entropy tokens: `sk-...` and other long runs of
+    mixed-case letters and digits. A bare hex string only counts
+    when it sits next to a key-ish word.
+
+After redaction the text is scanned again. The verdict "Safe to
+share" is given only when zero secrets remain.
+
+## What it leaves alone
+
+These look secret-shaped but are not secrets, and are left
+untouched:
+
+- A git commit hash sitting in a sentence
+- A UUID
+- A normal URL, including one with a port number
+- The word "password" in ordinary prose
+- A base64 blob that decodes to readable text (treated as data,
+  not a token)
 
 ## If something breaks
 
@@ -77,6 +142,8 @@ anyway:
 bash install.sh     # install
 bash run.sh         # open the window
 bash scrubber-cli --help
+bash safe-share-scrub --help
+bash safe-share-verify --help
 bash run_tests.sh   # run the test suite
 ```
 
