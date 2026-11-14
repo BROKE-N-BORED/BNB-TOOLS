@@ -1,0 +1,27 @@
+# Secrets and local config are never committed.
+.env
+*.env
+
+# Python bytecode and caches.
+__pycache__/
+*.pyc
+*.pyo
+
+# Private install tools folder.
+.venv/
+.venv.backup/
+
+# Rendered icons: build_zip.py renders these into the Release zip
+# and install.sh renders them for a fresh clone. They are derived
+# from assets/vision.svg and are never committed (snapshot pushes
+# cannot carry binaries).
+assets/*.png
+
+# Build outputs.
+*.zip
+install.log
+.qt-probe.err
+logs/
+
+# Local cache (lives in the user's cache dir, not the tree).
+cache/

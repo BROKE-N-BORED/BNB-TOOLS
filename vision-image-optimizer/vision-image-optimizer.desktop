@@ -1,0 +1,13 @@
+# Template for the app launcher. The installer writes the real one
+# with the ABSOLUTE install path into Exec (see install.sh) — %k
+# would resolve to the menu folder, where the program is not.
+[Desktop Entry]
+Type=Application
+Name=Vision Image Optimizer
+Comment=Shrink pictures before a local vision model looks at them
+Exec="/path/to/vision-image-optimizer/run.sh"
+Icon=/path/to/vision-image-optimizer/assets/vision.png
+Terminal=false
+Categories=Utility;
+StartupWMClass=Vision Image Optimizer
+StartupNotify=false

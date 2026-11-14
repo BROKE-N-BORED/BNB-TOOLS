@@ -2,7 +2,7 @@
 
 Working scripts and CLIs: the executable halves of BNB SKILLS playbooks, plus standalone utilities — and, since 2026-11-13, standalone PROJECTS spun off from chat threads as ideas (Joshua, 2026-11-13 23:39: BNB-TOOLS is also for projects, like WinLinx — surfacing ideas from the threads and building them, almost like the dream feature). Where a skill is a playbook an agent follows, a tool is a script the agent runs, or a full program the user runs. Each tool is a folder with its own README; a script or CLI tool answers `--help` with its usage.
 
-Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats read: main chat plus 66 side chats, 73 raw workflow candidates deduped to 52 skills and 17 tools). First delta scan the same evening (scan window ~17:54–19:00 EST) added 3 more tools (T18–T20) and an update to T11. T21 (debug-log-layer) was added later the same evening from his main-chat order for a debug layer in every project build. Second delta scan (2026-11-13, window ~19:13 EST 2026-11-12 → ~10:00 EST) added 2 more tools (T22–T23) and updates to 3 tool READMEs. Third delta scan the same evening (2026-11-13, window ~10:00–19:53 EST) added 2 more tools (T24–T25) and updates to 3 tool READMEs. Fifth delta scan the same evening (2026-11-13, window ~20:24–23:17 EST) added no new tools and changed the definition of a tool: BNB-TOOLS now also holds standalone projects spun off from threads, and the sweep collects spin-off candidates each delta (7 in Delta 5). The companion repo, BNB SKILLS, holds the playbooks these tools pair with.
+Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats read: main chat plus 66 side chats, 73 raw workflow candidates deduped to 52 skills and 17 tools). First delta scan the same evening (scan window ~17:54–19:00 EST) added 3 more tools (T18–T20) and an update to T11. T21 (debug-log-layer) was added later the same evening from his main-chat order for a debug layer in every project build. Second delta scan (2026-11-13, window ~19:13 EST 2026-11-12 → ~10:00 EST) added 2 more tools (T22–T23) and updates to 3 tool READMEs. Third delta scan the same evening (2026-11-13, window ~10:00–19:53 EST) added 2 more tools (T24–T25) and updates to 3 tool READMEs. Fifth delta scan the same evening (2026-11-13, window ~20:24–23:17 EST) added no new tools and changed the definition of a tool: BNB-TOOLS now also holds standalone projects spun off from threads, and the sweep collects spin-off candidates each delta (7 in Delta 5). First spin-off build (2026-11-14) added T26, the vision-image optimizer — the first standalone project tool, built from the Delta 5 candidates on his "continue" order. The companion repo, BNB SKILLS, holds the playbooks these tools pair with.
 
 ## Requirements
 
@@ -22,7 +22,7 @@ Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats rea
 - Run the smoke test before first use and after any change to the tool.
 - A smoke test that needs a live service says so in the tool README and is skipped by default.
 
-## All 25 tools
+## All 26 tools
 
 | # | Tool | Description | Paired skill |
 |---|---|---|---|
@@ -51,6 +51,7 @@ Built from `~/workspace/bnb-skills-tools/AUDIT.md` (2026-11-12, all 67 chats rea
 | T23 | `task-list-coverage-check` | Check a task list covers every audit finding: uncovered findings, unknown references, duplicate IDs, count reconciliation | S65 |
 | T24 | `staging-guard` | Pre-build check for a publish staging dir: manifest of required files from a trusted source, verify presence and hashes before building the Release zip | S1 |
 | T25 | `desktop-launch-sim` | Simulate a double-click on an installed .desktop launcher from another folder and cwd; reports STARTED / FAILED, catches %k-relative lookups | S6 |
+| T26 | `vision-image-optimizer` | Standalone Qt app: shrink pictures before a local vision model looks at them (512w cuts a 1080p screenshot from ~2,000 vision tokens to ~150), describe via local Ollama | S6 |
 
 ## How to add a new tool
 

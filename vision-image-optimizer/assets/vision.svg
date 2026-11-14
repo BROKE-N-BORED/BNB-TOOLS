@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Vision Image Optimizer</title>
+  <rect x="8" y="8" width="240" height="240" rx="48" fill="#23262b" stroke="#3a3e44" stroke-width="4"/>
+  <!-- crop corner marks: keep only the part that matters -->
+  <g stroke="#c8c8c8" stroke-width="10" stroke-linecap="round" fill="none">
+    <path d="M56 92 L56 64 L84 64"/>
+    <path d="M172 64 L200 64 L200 92"/>
+    <path d="M56 164 L56 192 L84 192"/>
+    <path d="M172 192 L200 192 L200 164"/>
+  </g>
+  <!-- eye: the vision model looking -->
+  <path d="M40 128 Q128 48 216 128 Q128 208 40 128" fill="none" stroke="#e8a33d" stroke-width="16" stroke-linecap="round"/>
+  <circle cx="128" cy="128" r="28" fill="#e8a33d"/>
+  <circle cx="128" cy="128" r="10" fill="#23262b"/>
+</svg>

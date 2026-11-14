@@ -1,0 +1,13 @@
+# Double-click installer. GLib-safe Exec: no nested escaped quotes,
+# no backslashes (GLib unescapes them). %k is the path of this file;
+# some launchers (gio launch) expand %k to empty, so the fallback
+# uses the working directory AS the folder — dirname() of it would
+# go up one level and miss install.sh.
+[Desktop Entry]
+Type=Application
+Name=Install Vision Image Optimizer
+Comment=Install Vision Image Optimizer (double-click, no terminal needed)
+Exec=python3 -c "import os, sys, subprocess; a = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else ''; d = os.path.dirname(a) if a else os.getcwd(); subprocess.call(['bash', os.path.join(d, 'install.sh')])" %k
+Icon=system-software-install
+Terminal=false
+Categories=Utility;
