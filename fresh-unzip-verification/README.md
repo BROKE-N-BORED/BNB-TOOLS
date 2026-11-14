@@ -64,6 +64,22 @@ make the build regenerate it — ACR v0.8's `build_zip.py` renders the
 PNGs from the SVG when absent). This variant is a documented procedure,
 not a harness flag yet: the harness does not automate the clone step.
 
+## Launch simulation
+
+The unzip and clone checks prove the tree; they do not prove the
+installed launcher finds the program. ACR v0.8 shipped a desktop icon
+that did nothing when clicked: the icon sat on the Desktop and looked
+for the program next to itself, while the program was in the folder
+the user unzipped — the app runs fine from its own folder, so no
+unzip check caught it.
+
+Procedure: place the installed `.desktop` file in a different folder
+from the program (simulating the Desktop), launch it from an unrelated
+working directory with `%k` expanded to the placed path, and confirm
+the app actually starts and logs it. A launcher that exits immediately
+or finds nothing fails the check. The T25 desktop-launch-sim tool
+automates this simulation; the procedure above is the manual form.
+
 ## src-layout lesson
 
 From a bare clone of a src-layout project, `python3 -m unittest discover -s

@@ -9,7 +9,7 @@ From a project tree + icon SVG, produces a real Linux program package. Converges
 Into `--out` it generates:
 
 - `<name>/` — the staged app tree (excludes `__pycache__`, `.forge`, `.git`, `.venv`, `*.pyc`).
-- `<name>/icons/` — PNGs rendered from the icon SVG at 16/32/48/64/128/256 px, when a renderer is available. Tries `rsvg-convert`, then `cairosvg`, then ImageMagick (`convert`/`magick`). If **none** is available it prints a clear error naming the missing tools and still generates everything else, with the SVG as the icon source of truth.
+- `<name>/icons/` — PNGs rendered from the icon SVG at 16/32/48/64/128/256 px, when a renderer is available. Tries `rsvg-convert`, then `cairosvg`, then ImageMagick (`convert`/`magick`). If **none** is available it prints a clear error naming the missing tools and still generates everything else, with the SVG as the icon source of truth. Render in a subprocess: a renderer crash inside the calling process fails the suite or the packaging run instead of the render (DATAPACKR v0.1.1, 2026-11-13: the fresh-clone suite failed 3 tests because the icon render crashed inside the test process; rendering in a subprocess fixed it).
 - `install.sh` — installer (double-clickable via the desktop file, or `bash install.sh`). Copies the tree to `~/.local/share/<name>`, installs the menu entry, then **self-verifies**: every `--dep` module must import after install or the install fails loudly. Deps are core, never optional.
 - `uninstall.sh` — removes the install + menu entry.
 - `Install <Name>.desktop` — double-click installer launcher.
@@ -18,6 +18,8 @@ Into `--out` it generates:
 ## .desktop Exec quoting
 
 GLib's desktop parser **rejects any nested escaped quote** in `Exec` — the whole file fails with "Desktop file didn't specify Exec field" (AGENTS.md, Code Forge WAVE 2026-11-12). The launcher therefore uses `python3 -c "..."` with `%k` as a **separate argv token** (field-code expansion keeps a spaced path as one argument), dirname done in Python, `subprocess.call` with a list — never `sh -c "$(dirname "%k")"`. An `os.getcwd()` fallback covers launchers (like `gio launch`) that expand `%k` to empty.
+
+The generated menu entry must point at the program with the install folder baked in at install time — never resolve the program from the icon file's location: the installer copies the .desktop file to the Desktop/menu, far from the program folder, and an icon that looks for the program next to itself does nothing when clicked (ACR v0.8.1, 2026-11-13).
 
 ## Requirements
 

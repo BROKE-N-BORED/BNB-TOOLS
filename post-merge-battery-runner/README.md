@@ -17,6 +17,8 @@ Exit codes: 0 = failure set identical to baseline (clean), 1 = new failures, 2 =
 
 The wait-for-window watchdog **must** live in a file, never as `bash -c`: a `bash -c` watchdog whose own command text contains the pgrep match string (including the unittest invocation itself) matches its own process forever and the window never reads clear (AGENTS.md, Forge 2026-11-12). This tool *is* that script file — and its stability check watches the tree (mtimes), not a process pattern, so it cannot self-match at all.
 
+Check free disk space before you run it: the suite needs at least 300 MB free on /tmp — see S8 (post-merge-battery) for the gate, the invalid-run triage, and the ceiling-recalibration rule. A run killed by disk-full is invalid, not a failure set.
+
 ## Requirements
 
 Python 3.8+, stdlib only. No network. `pgrep` only needed for `--wait-for-process`.
