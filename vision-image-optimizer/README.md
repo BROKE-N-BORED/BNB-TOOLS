@@ -4,7 +4,7 @@ Shrink pictures before a local vision model looks at them, so each
 look costs fewer vision tokens and less time.
 
 A 1920x1080 screenshot reads 2040 vision tokens. At 512 wide it
-reads 144. That is about 14x less vision work for the model — and
+reads 144. That is about 14x less vision work for the model, and
 smaller picture files too.
 
 **Plain truth:** only the vision part shrinks about 14x. The whole
@@ -33,10 +33,11 @@ To remove it, run the uninstaller in the install folder
 4. **Optimize:** Optimize selected (or Optimize all) saves a
    shrunken copy next to the original, in an `optimized` folder.
    Your original is never changed or overwritten.
-5. **Describe:** Describe asks the local model what is in the
-   shrunken picture. A small model looks first; the careful model
-   only wakes up if the small one cannot see enough. If Ollama is
-   not running, describing waits but shrinking still works.
+5. **Describe:** Describe saves the shrunken copy first, then asks
+   the local model what is in that copy. A small model looks first;
+   the careful model only wakes up if the small one cannot see
+   enough. If Ollama is not running, describing waits but shrinking
+   still works.
 6. **Cache:** the same picture with the same settings is answered
    once. A cached answer is marked "from cache". Clear cache
    empties it.
@@ -60,18 +61,46 @@ app.
   saying it cannot see. Both models are configurable, and so is the
   Ollama address (default `http://127.0.0.1:11434`).
 
+## The chain: shrink, describe, view
+
+The window is a viewer over three small steps, and each step also
+runs on its own from a terminal:
+
+```
+vision-shrink photo.png                # shrink one picture
+vision-describe photo-512w.jpg         # describe one picture as given
+vision-image-optimizer                 # the combined command + window
+```
+
+Chain them for the full run, the same thing the Describe button
+does:
+
+```
+vision-shrink photo.png && vision-describe photo-512w.jpg
+```
+
+`vision-shrink` saves the shrunken copy (in an `optimized` folder
+next to the original by default) and prints its size, tokens, and
+path. `vision-describe` describes the file you hand it, as given:
+it does not shrink first, so hand it the shrunken copy when you
+want the small-token look. Both take `--json` for one machine
+readable result object, and `--help` lists every option.
+
 ## Command line
 
-The command line works while the window is open:
+The combined command works while the window is open:
 
 ```
 vision-image-optimizer optimize photo.png --width 512
 vision-image-optimizer describe photo.png
 vision-image-optimizer cache-clear
+vision-image-optimizer cache-stats
 vision-image-optimizer debug-report
 ```
 
-`vision-image-optimizer --help` lists every option.
+`vision-image-optimizer --help` lists every option. The `optimize`
+and `describe` subcommands do the same work as `vision-shrink`
+and `vision-describe`, in one command.
 
 ## If something breaks
 
@@ -97,6 +126,8 @@ anyway:
 bash install.sh     # install
 bash run.sh         # open the window
 bash optimizer-cli --help
+bash vision-shrink --help
+bash vision-describe --help
 bash run_tests.sh   # run the test suite
 ```
 

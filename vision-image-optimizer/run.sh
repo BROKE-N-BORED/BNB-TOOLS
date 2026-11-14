@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Vision Image Optimizer launcher — opens the Vision Image Optimizer
+# Vision Image Optimizer launcher: opens the Vision Image Optimizer
 # window. No terminal needed.
 set -euo pipefail
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Vision Image Optimizer uninstaller — removes the app menu entry,
+# Vision Image Optimizer uninstaller: removes the app menu entry,
 # desktop icon, command-line link, and the private tools folder.
 # Your pictures, settings, and cache are left alone unless you pass
 # --remove-data.
@@ -22,6 +22,8 @@ fi
 rm -f "$HOME/.local/share/applications/vision-image-optimizer.desktop"
 rm -f "$HOME/Desktop/Vision Image Optimizer.desktop"
 rm -f "$HOME/.local/bin/vision-image-optimizer"
+rm -f "$HOME/.local/bin/vision-shrink"
+rm -f "$HOME/.local/bin/vision-describe"
 rm -rf "$DIR/.venv" "$DIR/.venv.backup"
 
 if [ "$REMOVE_DATA" = "1" ]; then

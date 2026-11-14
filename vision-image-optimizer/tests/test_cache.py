@@ -10,7 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 
 from helpers import make_image  # noqa: E402
-from optimizer import core  # noqa: E402
+from optimizer.cache import ImageCache  # noqa: E402
+from optimizer.shrink import optimize_bytes  # noqa: E402
 
 SETTINGS = {"width": 512, "quality": 85, "format": "JPEG",
             "crop": None}
@@ -19,12 +20,12 @@ SETTINGS = {"width": 512, "quality": 85, "format": "JPEG",
 class OptimizedCacheTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.cache = core.ImageCache(self.tmp.name)
+        self.cache = ImageCache(self.tmp.name)
         self.img_path = make_image(
             os.path.join(self.tmp.name, "pic.png"), 640, 480)
         with open(self.img_path, "rb") as fh:
             self.image_bytes = fh.read()
-        self.result = core.optimize_bytes(self.image_bytes, SETTINGS)
+        self.result = optimize_bytes(self.image_bytes, SETTINGS)
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -77,7 +78,7 @@ class OptimizedCacheTests(unittest.TestCase):
         self.assertEqual(self.cache.stats(), (0, 0, 0))
 
     def test_disabled_cache_never_hits(self):
-        cache = core.ImageCache(self.tmp.name, enabled=False)
+        cache = ImageCache(self.tmp.name, enabled=False)
         cache.put_optimized(self.image_bytes, SETTINGS, self.result)
         self.assertIsNone(cache.get_optimized(self.image_bytes,
                                               SETTINGS))
@@ -94,8 +95,8 @@ class OptimizedCacheTests(unittest.TestCase):
             os.path.abspath(__file__)))
         script = (
             "import sys; sys.path.insert(0, %r);"
-            "from optimizer import core;"
-            "cache = core.ImageCache(%r);"
+            "from optimizer.cache import ImageCache;"
+            "cache = ImageCache(%r);"
             "data = open(%r, 'rb').read();"
             "hit = cache.get_optimized(data, %r);"
             "assert hit is not None and hit['from_cache'], 'opt miss';"
@@ -115,7 +116,7 @@ class OptimizedCacheTests(unittest.TestCase):
 class DescriptionCacheTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.cache = core.ImageCache(self.tmp.name)
+        self.cache = ImageCache(self.tmp.name)
         self.opt_bytes = b"fake-optimized-bytes"
 
     def tearDown(self):

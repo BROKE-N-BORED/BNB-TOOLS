@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build vision-image-optimizer-v0.1.0.zip for verification / release.
+"""Build vision-image-optimizer-v0.2.0.zip for verification / release.
 
 Correct exec bits via external_attr: 0o100755 for scripts, 0o100644
 for plain files. Bare 0o755 (no file-type bits) extracts fine under
@@ -7,8 +7,13 @@ the `unzip` CLI but GUI extractors drop the execute bit.
 
 The icon PNGs are rendered into a temp folder (in a subprocess, so
 a render crash fails the build instead of the caller) and packed
-into the zip at assets/ — they never land in the tree.
+into the zip at assets/, so they never land in the tree.
+
+The zip is written OUTSIDE this folder by default, so the folder
+stays all UTF-8 text (snapshot pushes cannot carry binaries).
+Use --out to pick a different destination.
 """
+import argparse
 import hashlib
 import subprocess
 import sys
@@ -17,13 +22,14 @@ import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-ZIP_NAME = "vision-image-optimizer-v0.1.0.zip"
+ZIP_NAME = "vision-image-optimizer-v0.2.0.zip"
 
 SCRIPTS = {"install.sh", "run.sh", "optimizer-cli", "uninstall.sh",
-           "run_tests.sh", "build_zip.py", "render_icons.py"}
+           "run_tests.sh", "build_zip.py", "render_icons.py",
+           "vision-shrink", "vision-describe"}
 
 SKIP_DIRS = {"__pycache__", ".forge", ".venv", "venv", ".git", "logs"}
-SKIP_FILES = {".DS_Store", "BUILD_REPORT.md"}
+SKIP_FILES = {".DS_Store", "BUILD_REPORT.md", "install.log"}
 
 
 def collect() -> list[Path]:
@@ -34,6 +40,13 @@ def collect() -> list[Path]:
         if path.name == ZIP_NAME:
             continue
         if path.name in SKIP_FILES or path.suffix == ".zip":
+            continue
+        # Rendered icons are packed fresh by render_icons()
+        # below; a PNG already sitting in assets/ (an installed
+        # copy, or a local render) would otherwise land in the
+        # zip twice under the same name.
+        if (path.suffix == ".png"
+                and path.parent.name == "assets"):
             continue
         if any(part in SKIP_DIRS for part in path.relative_to(HERE).parts):
             continue
@@ -56,8 +69,14 @@ def render_icons(tmpdir: Path) -> list[Path]:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Build the Vision Image Optimizer release zip.")
+    parser.add_argument("--out", default=None,
+                        help="zip destination (default: ../%s)"
+                        % ZIP_NAME)
+    args = parser.parse_args()
+    out = Path(args.out) if args.out else HERE.parent / ZIP_NAME
     files = collect()
-    out = HERE / ZIP_NAME
     with tempfile.TemporaryDirectory() as tmp:
         icons = render_icons(Path(tmp))
         with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:

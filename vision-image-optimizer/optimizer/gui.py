@@ -1,15 +1,43 @@
-"""Qt GUI for Vision Image Optimizer.
+"""Qt GUI for Vision Image Optimizer: a THIN viewer (v0.2.0).
 
 One main window, two zones: images and preview on the left, settings
-and results on the right. Describing runs in a worker thread; the
-window never blocks. Single instance via QLockFile. Geometry is
-remembered between runs.
+and results on the right. The window looks and behaves like v0.1.0,
+but it does NO shrinking and NO describing itself: every piece of
+real work runs in a subprocess, in a worker thread, so the window
+never blocks.
+
+The chain, run as small commands (each also works on its own):
+
+    vision-shrink photo.png            shrink one picture
+    vision-describe photo-512w.jpg     describe one picture as given
+
+The GUI drives the same modules the commands use:
+
+    python -m optimizer.shrink <file> --json
+    python -m optimizer.describe <file> --json
+    python -m optimizer.cli cache-stats --json
+    python -m optimizer.cli cache-clear
+
+Optimize selected / Optimize all run the shrink subprocess and show
+the result. Describe runs shrink first (which writes the optimized
+copy to the normal output folder) and then describe on that copy,
+and shows the text plus the measurements. Cancel kills the running
+subprocess promptly; closing the window mid-run stops it too.
+
+IMPORT BAN (hard rule, test-enforced in tests/test_packaging.py):
+this module must NOT import optimizer.shrink, optimizer.describe,
+optimizer.cache, optimizer.ollama, optimizer.cli, PIL, or urllib.
+It may import Qt, optimizer.tokens, optimizer.settings,
+optimizer.logsetup, optimizer (__version__), and the stdlib.
 
 Visible text rules (design rules U11, U33): no em-dashes anywhere,
 no bare & in any label. Keep it that way when editing strings.
 """
 
+import json
 import os
+import re
+import subprocess
 import sys
 
 from PySide6.QtCore import (QByteArray, QEvent, QLockFile, QRect, QSize,
@@ -25,11 +53,12 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog,
                                QWidget)
 
 from . import __version__
-from . import core
-from .cli import make_logger
-from .ollama import OllamaClient, OllamaError
+from .logsetup import make_logger
 from .settings import (QUALITY_PRESETS, SIZE_PRESETS, Settings,
                        cache_dir)
+from .tokens import (SUPPORTED_EXTENSIONS, clamp_crop,
+                     describe_measurements, format_measurements,
+                     human_size, target_size, vision_tokens)
 
 APP_DISPLAY_NAME = "Vision Image Optimizer"
 DEFAULT_WIDTH = 1100
@@ -89,6 +118,245 @@ def try_single_instance():
     if lock.tryLock(0):
         return lock
     return None
+
+
+def tree_root():
+    """The folder holding the optimizer package (the tree root).
+
+    The subprocesses run with this on PYTHONPATH, so the package is
+    importable from the source tree AND from the installed location.
+    """
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def subprocess_env():
+    """Environment for the worker subprocesses: the caller's env with
+    the tree root first on PYTHONPATH."""
+    env = dict(os.environ)
+    root = tree_root()
+    existing = env.get("PYTHONPATH", "")
+    if existing:
+        env["PYTHONPATH"] = root + os.pathsep + existing
+    else:
+        env["PYTHONPATH"] = root
+    return env
+
+
+def _last_line(text):
+    """The last non-empty line: a plain error stays whole, a
+    traceback collapses to its exception line."""
+    lines = [line for line in text.splitlines() if line.strip()]
+    return lines[-1] if lines else ""
+
+
+class _SubprocessThread(QThread):
+    """Base for workers that run optimizer modules as subprocesses.
+
+    Cancel kills the running subprocess promptly (SIGKILL) and the
+    run loop checks the flag between steps, so a cancelled chain
+    stops at the next step boundary at the latest.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._cancelled = False
+        self._proc = None
+
+    def cancel(self):
+        self._cancelled = True
+        proc = self._proc
+        if proc is not None:
+            try:
+                if proc.poll() is None:
+                    proc.kill()
+            except (OSError, ValueError):
+                pass
+
+    def _run_json(self, module, args):
+        """Run [sys.executable, -m, module, *args], parse --json stdout.
+
+        Returns (payload, error): exactly one is None. (None, None)
+        means the run was cancelled.
+        """
+        cmd = [sys.executable, "-m", module] + args
+        try:
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env=subprocess_env(), text=True)
+        except OSError as exc:
+            return None, "Could not start %s: %s" % (module, exc)
+        self._proc = proc
+        if self._cancelled:
+            # Cancel landed after the flag check but before the
+            # process started: kill it instead of running it out.
+            try:
+                proc.kill()
+            except OSError:
+                pass
+            proc.communicate()
+            self._proc = None
+            return None, None
+        try:
+            stdout, stderr = proc.communicate()
+        finally:
+            self._proc = None
+        if self._cancelled:
+            return None, None
+        if proc.returncode != 0:
+            message = _last_line(stderr)
+            return None, message if message else "%s failed" % module
+        try:
+            return json.loads(stdout), None
+        except ValueError:
+            return None, "Could not read the result from %s" % module
+
+    def _run_plain(self, module, args):
+        """Run one module subprocess, return its stdout text.
+
+        Returns (stdout, error): exactly one is None. (None, None)
+        means the run was cancelled.
+        """
+        cmd = [sys.executable, "-m", module] + args
+        try:
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env=subprocess_env(), text=True)
+        except OSError as exc:
+            return None, "Could not start %s: %s" % (module, exc)
+        self._proc = proc
+        if self._cancelled:
+            # Cancel landed after the flag check but before the
+            # process started: kill it instead of running it out.
+            try:
+                proc.kill()
+            except OSError:
+                pass
+            proc.communicate()
+            self._proc = None
+            return None, None
+        try:
+            stdout, stderr = proc.communicate()
+        finally:
+            self._proc = None
+        if self._cancelled:
+            return None, None
+        if proc.returncode != 0:
+            message = _last_line(stderr)
+            return None, message if message else "%s failed" % module
+        return stdout, None
+
+
+class OptimizeWorker(_SubprocessThread):
+    """Shrink one or more pictures via the shrink subprocess.
+
+    done emits a list of (record, payload, error); a failed picture
+    is recorded with its error and the rest still run, like v0.1.
+    """
+
+    done = Signal(object)
+    cancelled = Signal()
+
+    def __init__(self, jobs, parent=None):
+        # jobs: [(record, shrink-args), ...]
+        super().__init__(parent)
+        self._jobs = jobs
+
+    def run(self):
+        try:
+            results = []
+            for record, args in self._jobs:
+                if self._cancelled:
+                    self.cancelled.emit()
+                    return
+                payload, error = self._run_json(
+                    "optimizer.shrink", args)
+                if self._cancelled:
+                    self.cancelled.emit()
+                    return
+                results.append((record, payload, error))
+            self.done.emit(results)
+        except Exception as exc:  # never let the thread die silently
+            if self._cancelled:
+                self.cancelled.emit()
+            else:
+                self.done.emit([(record, None,
+                                 "Optimizing failed: %s" % exc)
+                                for record, _ in self._jobs])
+
+
+class DescribeWorker(_SubprocessThread):
+    """Describe one picture: shrink subprocess first (writes the
+    optimized copy to the normal output folder), then the describe
+    subprocess on that copy.
+
+    done emits {"shrink": shrink-payload, "describe": describe-payload}.
+    """
+
+    done = Signal(object)
+    failed = Signal(str)
+    cancelled = Signal()
+
+    def __init__(self, shrink_args, describe_args, parent=None):
+        super().__init__(parent)
+        self._shrink_args = shrink_args
+        # describe_args: the option flags; the file path goes first
+        # once the shrink step has produced it.
+        self._describe_args = describe_args
+
+    def run(self):
+        try:
+            shrink, error = self._run_json(
+                "optimizer.shrink", self._shrink_args)
+            if self._cancelled:
+                self.cancelled.emit()
+                return
+            if error is not None:
+                self.failed.emit(error)
+                return
+            desc, error = self._run_json(
+                "optimizer.describe",
+                [shrink["path"]] + self._describe_args)
+            if self._cancelled:
+                self.cancelled.emit()
+                return
+            if error is not None:
+                self.failed.emit(error)
+                return
+            self.done.emit({"shrink": shrink, "describe": desc})
+        except Exception as exc:  # never let the thread die silently
+            if self._cancelled:
+                self.cancelled.emit()
+            else:
+                self.failed.emit("Describing failed: %s" % exc)
+
+
+class CliWorker(_SubprocessThread):
+    """One optimizer.cli call: cache-stats --json or cache-clear.
+
+    done emits the parsed JSON payload (cache-stats), the stdout
+    text (cache-clear), or None when the call failed or was
+    cancelled.
+    """
+
+    done = Signal(object)
+
+    def __init__(self, args, want_json, parent=None):
+        super().__init__(parent)
+        self._args = args
+        self._want_json = want_json
+
+    def run(self):
+        try:
+            if self._want_json:
+                payload, error = self._run_json("optimizer.cli",
+                                                self._args)
+                self.done.emit(payload if error is None else None)
+            else:
+                text, error = self._run_plain("optimizer.cli",
+                                              self._args)
+                self.done.emit(text if error is None else None)
+        except Exception:  # never let the thread die silently
+            self.done.emit(None)
 
 
 class CropPreviewLabel(QLabel):
@@ -226,90 +494,12 @@ class CropPreviewLabel(QLabel):
             return
         x1, y1 = self._label_to_image_point(rect.topLeft())
         x2, y2 = self._label_to_image_point(rect.bottomRight())
-        box = core.clamp_crop((x1, y1, x2 - x1, y2 - y1),
-                              self._orig_w, self._orig_h)
+        box = clamp_crop((x1, y1, x2 - x1, y2 - y1),
+                         self._orig_w, self._orig_h)
         self._crop = box
         if box is None:
             self._band.hide()
         self.cropChanged.emit(box)
-
-
-class DescribeWorker(QThread):
-    """Describe one picture in a worker thread. Never blocks the UI."""
-
-    done = Signal(dict)
-    failed = Signal(str)
-    cancelled = Signal()
-
-    def __init__(self, image_bytes, optimize_opts, cache, client,
-                 prompt, fast_model, smart_model, parent=None):
-        super().__init__(parent)
-        self._image_bytes = image_bytes
-        self._opts = optimize_opts
-        self._cache = cache
-        self._client = client
-        self._prompt = prompt
-        self._fast_model = fast_model
-        self._smart_model = smart_model
-        self._cancelled = False
-
-    def cancel(self):
-        self._cancelled = True
-
-    def run(self):
-        try:
-            result = self._cache.get_optimized(self._image_bytes,
-                                               self._opts)
-            opt_cached = result is not None
-            if result is None:
-                result = core.optimize_bytes(self._image_bytes,
-                                             self._opts)
-                self._cache.put_optimized(self._image_bytes,
-                                          self._opts, result)
-            if self._cancelled:
-                self.cancelled.emit()
-                return
-            record = self._cache.get_description(
-                result["data"], self._prompt, self._fast_model,
-                self._smart_model)
-            desc_cached = record is not None
-            if record is None:
-                found = self._client.describe(
-                    result["data"], self._prompt, self._fast_model,
-                    self._smart_model)
-                if self._cancelled:
-                    self.cancelled.emit()
-                    return
-                record = found.to_record()
-                self._cache.put_description(
-                    result["data"], self._prompt, self._fast_model,
-                    self._smart_model, record)
-            measure = core.describe_measurements(
-                record.get("fast_seconds"),
-                record.get("smart_seconds"),
-                result["tokens_before"], result["tokens_after"],
-                result["bytes_before"], result["bytes_after"])
-            self.done.emit({
-                "text": record["text"],
-                "model_used": record["model_used"],
-                "escalated": record.get("escalated", False),
-                "fast_tried": record.get("fast_tried", False),
-                "from_cache": desc_cached,
-                "optimized_cached": opt_cached,
-                "measurements": measure,
-                "tokens_before": result["tokens_before"],
-                "tokens_after": result["tokens_after"],
-            })
-        except OllamaError as exc:
-            if not self._cancelled:
-                self.failed.emit(str(exc))
-            else:
-                self.cancelled.emit()
-        except Exception as exc:  # never let the thread die silently
-            if not self._cancelled:
-                self.failed.emit("Describing failed: %s" % exc)
-            else:
-                self.cancelled.emit()
 
 
 HOW_TO_USE_TEXT = """How to use Vision Image Optimizer
@@ -330,10 +520,11 @@ HOW_TO_USE_TEXT = """How to use Vision Image Optimizer
    original, in an "optimized" folder. Your original is never
    changed or overwritten.
 
-5. Describe: Describe asks the local model what is in the shrunken
-   picture. A small model looks first; the careful model only wakes
-   up if the small one cannot see enough. If Ollama is not running,
-   describing waits but shrinking still works.
+5. Describe: Describe saves the shrunken copy first, then asks the
+   local model what is in that copy. A small model looks first; the
+   careful model only wakes up if the small one cannot see enough.
+   If Ollama is not running, describing waits but shrinking still
+   works.
 
 6. Cache: the same picture with the same settings is answered once.
    A cached answer is marked "from cache". Clear cache empties it.
@@ -342,7 +533,12 @@ HOW_TO_USE_TEXT = """How to use Vision Image Optimizer
    both models, and the prompt are all on the right. They are
    remembered between runs.
 
-8. Debug report: File, Generate debug report writes a file you can
+8. From a terminal: the same steps run as small commands that chain
+   together. vision-shrink photo.png saves the shrunken copy, then
+   vision-describe photo-512w.jpg describes it. Each command also
+   works on its own.
+
+9. Debug report: File, Generate debug report writes a file you can
    send to broke.n.bored.studio@gmail.com if something breaks.
 
 Only the vision part shrinks about 14x. The whole turn does not get
@@ -376,18 +572,19 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self.setWindowTitle(APP_DISPLAY_NAME)
         self.settings = settings or Settings()
-        self.cache = cache or core.ImageCache(
-            cache_dir(), enabled=bool(
-                self.settings.get("cache_enabled")))
+        # cache and ollama_client are accepted for the v0.1 call
+        # shape but no longer used for work: the cache lives in
+        # the shrink/describe subprocesses, and Ollama is reached
+        # by the describe subprocess at the settings URL. Tests
+        # point the window at a fake server by setting the
+        # ollama_url setting.
         self.logger = logger or make_logger(self.settings)
         self.logger.install_crash_handler()
-        self.client = ollama_client or OllamaClient(
-            self.settings.get("ollama_url"))
-        # An injected client (tests, proof harness) keeps its own
-        # address; _on_settings_changed must not overwrite it.
-        self._client_injected = ollama_client is not None
         self.images = []          # image record dicts, in list order
-        self._worker = None
+        self._worker = None       # OptimizeWorker or DescribeWorker
+        self._stats_worker = None  # CliWorker for cache-stats
+        self._stats_pending = False
+        self._clear_worker = None  # CliWorker for cache-clear
         self._how_to_use = None
         self._syncing_crop = False
         self._build_ui()
@@ -684,32 +881,43 @@ class MainWindow(QMainWindow):
             self.resize(DEFAULT_WIDTH, DEFAULT_HEIGHT)
 
     def closeEvent(self, event):
-        if self._worker is not None:
-            self._worker.cancel()
-            self._worker.wait(3000)
+        # Closing mid-run stops the subprocess: cancel kills it, and
+        # wait() reaps the thread before the window goes away.
+        for worker in (self._worker, self._stats_worker,
+                       self._clear_worker):
+            if worker is not None:
+                worker.cancel()
+                worker.wait(3000)
         self.settings.set_geometry(bytes(self.saveGeometry()))
         super().closeEvent(event)
 
     # -- image list ---------------------------------------------------
     def add_images(self, paths):
-        """Add image files. Returns (added, failures)."""
+        """Add image files. Returns (added, failures).
+
+        Dimensions come from QPixmap and the file size from the
+        filesystem, never PIL in the GUI.
+        """
         added = 0
         failures = []
         for path in paths:
             if not os.path.isfile(path):
                 failures.append((path, "not a file"))
                 continue
-            try:
-                info = core.image_info(path)
-            except Exception as exc:
-                failures.append((path, str(exc)))
+            ext = os.path.splitext(path)[1].lower()
+            if ext not in SUPPORTED_EXTENSIONS:
+                failures.append((path, "not a supported picture"))
+                continue
+            pixmap = QPixmap(path)
+            if pixmap.isNull():
+                failures.append((path, "could not read the picture"))
                 continue
             record = {
                 "path": os.path.abspath(path),
                 "name": os.path.basename(path),
-                "width": info["width"],
-                "height": info["height"],
-                "bytes": info["bytes"],
+                "width": pixmap.width(),
+                "height": pixmap.height(),
+                "bytes": os.path.getsize(path),
                 "crop": None,
                 "description": "",
                 "measurements": None,
@@ -747,10 +955,9 @@ class MainWindow(QMainWindow):
             w, h = crop[2], crop[3]
         else:
             w, h = record["width"], record["height"]
-        before = core.vision_tokens(record["width"], record["height"])
-        new_w, new_h = core.target_size(
-            w, h, self.settings.target_width())
-        return before, core.vision_tokens(new_w, new_h), new_w, new_h
+        before = vision_tokens(record["width"], record["height"])
+        new_w, new_h = target_size(w, h, self.settings.target_width())
+        return before, vision_tokens(new_w, new_h), new_w, new_h
 
     def _refresh_list(self):
         for row, record in enumerate(self.images):
@@ -780,7 +987,7 @@ class MainWindow(QMainWindow):
                 record["description"])
             if record["measurements"]:
                 self.measurements_label.setText(
-                    core.format_measurements(record["measurements"]))
+                    format_measurements(record["measurements"]))
             else:
                 self.measurements_label.setText("")
             self._set_crop_boxes(record, record["crop"])
@@ -828,8 +1035,8 @@ class MainWindow(QMainWindow):
             return
         box = (self.crop_x.value(), self.crop_y.value(),
                self.crop_w.value(), self.crop_h.value())
-        clamped = core.clamp_crop(box, record["width"],
-                                  record["height"])
+        clamped = clamp_crop(box, record["width"],
+                             record["height"])
         if clamped == (0, 0, record["width"], record["height"]):
             record["crop"] = None
             self.preview.set_crop(None)
@@ -879,15 +1086,44 @@ class MainWindow(QMainWindow):
         self._settings_form.setRowVisible(
             self._custom_quality_row,
             self.quality_preset.currentText() == "Custom")
-        if not self._client_injected:
-            self.client.base_url = self.settings.get("ollama_url")
         self._refresh_list()
         self._update_estimates()
 
-    def _optimize_opts(self, record):
-        opts = self.settings.optimize_settings()
-        opts["crop"] = record["crop"]
-        return opts
+    # -- subprocess arguments -----------------------------------------
+    def _shrink_args(self, record):
+        """CLI args for `python -m optimizer.shrink` for this record.
+
+        Every value is passed explicitly: the subprocess reads its
+        own settings store, which in tests is not the window's.
+        """
+        args = [record["path"], "--json"]
+        width = self.settings.target_width()
+        if width is None:
+            args.append("--original-width")
+        else:
+            args += ["--width", str(width)]
+        args += ["--quality", str(self.settings.quality())]
+        args += ["--format", self.settings.get("output_format")]
+        out_dir = self.settings.get("output_folder") or ""
+        if out_dir:
+            args += ["--out-dir", out_dir]
+        if record["crop"] is not None:
+            args += ["--crop", "%d,%d,%d,%d" % record["crop"]]
+        if not self.settings.get("cache_enabled"):
+            args.append("--no-cache")
+        return args
+
+    def _describe_args(self):
+        """Option flags for `python -m optimizer.describe` (the file
+        path goes first, once the shrink step has produced it)."""
+        args = ["--prompt", self.settings.get("prompt"),
+                "--fast-model", self.settings.get("fast_model"),
+                "--smart-model", self.settings.get("smart_model"),
+                "--ollama-url", self.settings.get("ollama_url"),
+                "--json"]
+        if not self.settings.get("cache_enabled"):
+            args.append("--no-cache")
+        return args
 
     def _update_estimates(self):
         record = self._current_record()
@@ -923,18 +1159,15 @@ class MainWindow(QMainWindow):
     def _update_buttons(self):
         has_images = bool(self.images)
         has_selection = self._current_record() is not None
-        # A describe is in flight from the moment the worker exists
-        # until its done/failed/cancelled slot clears it — checking
+        # Work is in flight from the moment the worker exists until
+        # its done/failed/cancelled slot clears it; checking
         # isRunning() here races thread startup and leaves Cancel
         # disabled.
-        describing = self._worker is not None
-        self.optimize_button.setEnabled(has_selection
-                                        and not describing)
-        self.optimize_all_button.setEnabled(has_images
-                                            and not describing)
-        self.describe_button.setEnabled(has_selection
-                                        and not describing)
-        self.cancel_button.setEnabled(describing)
+        busy = self._worker is not None
+        self.optimize_button.setEnabled(has_selection and not busy)
+        self.optimize_all_button.setEnabled(has_images and not busy)
+        self.describe_button.setEnabled(has_selection and not busy)
+        self.cancel_button.setEnabled(busy)
 
     def _set_busy(self, busy, message=None):
         self.busy_light.setProperty("busy", busy)
@@ -944,75 +1177,84 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage(message)
         self._update_buttons()
 
+    def _start_worker(self, worker):
+        self._worker = worker
+        worker.done.connect(worker.deleteLater)
+        if hasattr(worker, "failed"):
+            worker.failed.connect(worker.deleteLater)
+        if hasattr(worker, "cancelled"):
+            worker.cancelled.connect(worker.deleteLater)
+
     # -- optimize -----------------------------------------------------
-    def _optimize_records(self, records):
+    def _on_optimize_selected(self):
+        record = self._current_record()
+        if record is not None and self._worker is None:
+            self._start_optimize([record])
+
+    def _on_optimize_all(self):
+        if self.images and self._worker is None:
+            self._start_optimize(list(self.images))
+
+    def _start_optimize(self, records):
+        jobs = [(record, self._shrink_args(record))
+                for record in records]
+        worker = OptimizeWorker(jobs, self)
+        worker.done.connect(self._on_optimize_finished)
+        worker.cancelled.connect(self._on_optimize_cancelled)
+        self._start_worker(worker)
+        self._set_busy(True, "Optimizing...")
+        worker.start()
+
+    def _on_optimize_finished(self, results):
+        self._worker = None
+        self._set_busy(False, "Ready")
         saved = []
-        for record in records:
-            opts = self._optimize_opts(record)
-            out_dir = self.settings.get("output_folder") or None
-            try:
-                dest, result = core.write_optimized(
-                    record["path"], out_dir, opts)
-            except Exception as exc:
+        for record, payload, error in results:
+            if error is not None:
                 self.logger.error("optimize failed for %s: %s",
-                                  record["path"], exc)
+                                  record["path"], error)
                 self.status_bar.showMessage(
                     "Could not optimize %s" % record["name"])
                 continue
-            record["optimized_path"] = dest
-            saved.append(dest)
+            record["optimized_path"] = payload["path"]
+            saved.append(payload["path"])
             self.logger.action(
                 "optimized %s: %d to %d tokens, %s to %s"
-                % (record["name"], result["tokens_before"],
-                   result["tokens_after"],
-                   core.human_size(result["bytes_before"]),
-                   core.human_size(result["bytes_after"])))
+                % (record["name"], payload["tokens_before"],
+                   payload["tokens_after"],
+                   human_size(payload["bytes_before"]),
+                   human_size(payload["bytes_after"])))
         if saved:
             folder = os.path.dirname(saved[0])
             self.status_bar.showMessage(
                 "Saved %d optimized picture(s) to %s"
                 % (len(saved), folder))
-        return saved
+        # Optimizing fills the cache, so the label is stale now.
+        self._refresh_cache_label()
 
-    def _on_optimize_selected(self):
-        record = self._current_record()
-        if record is not None:
-            self._optimize_records([record])
-
-    def _on_optimize_all(self):
-        if self.images:
-            self._optimize_records(list(self.images))
+    def _on_optimize_cancelled(self):
+        self._worker = None
+        self._set_busy(False, "Optimize cancelled")
+        self.logger.action("optimize cancelled")
+        self._refresh_cache_label()
 
     # -- describe -----------------------------------------------------
     def _on_describe(self):
         record = self._current_record()
         if record is None or self._worker is not None:
             return
-        try:
-            with open(record["path"], "rb") as fh:
-                image_bytes = fh.read()
-        except OSError as exc:
-            self.status_bar.showMessage("Could not read %s"
-                                        % record["name"])
-            self.logger.error("describe read failed: %s", exc)
-            return
         self.logger.action("describe started for %s"
                            % record["name"])
-        self._worker = DescribeWorker(
-            image_bytes, self._optimize_opts(record), self.cache,
-            self.client, self.settings.get("prompt"),
-            self.settings.get("fast_model"),
-            self.settings.get("smart_model"), self)
-        self._worker.done.connect(self._on_describe_finished)
-        self._worker.failed.connect(self._on_describe_failed)
-        self._worker.cancelled.connect(self._on_describe_cancelled)
-        self._worker.done.connect(self._worker.deleteLater)
-        self._worker.failed.connect(self._worker.deleteLater)
-        self._worker.cancelled.connect(self._worker.deleteLater)
+        worker = DescribeWorker(self._shrink_args(record),
+                                self._describe_args(), self)
+        worker.done.connect(self._on_describe_finished)
+        worker.failed.connect(self._on_describe_failed)
+        worker.cancelled.connect(self._on_describe_cancelled)
+        self._start_worker(worker)
         self.description_text.setPlainText("")
         self.measurements_label.setText("")
         self._set_busy(True, "Describing %s..." % record["name"])
-        self._worker.start()
+        worker.start()
 
     def _on_describe_finished(self, payload):
         record = self._current_record()
@@ -1020,19 +1262,27 @@ class MainWindow(QMainWindow):
         self._set_busy(False, "Ready")
         if record is None:
             return
-        record["description"] = payload["text"]
-        record["measurements"] = payload["measurements"]
-        self.description_text.setPlainText(payload["text"])
+        shrink = payload["shrink"]
+        desc = payload["describe"]
+        record["description"] = desc["text"]
+        record["optimized_path"] = shrink["path"]
+        # Tokens and sizes span the whole chain (original to
+        # shrunken); the look times come from the describe step.
+        measure = describe_measurements(
+            desc.get("fast_seconds"), desc.get("smart_seconds"),
+            shrink["tokens_before"], shrink["tokens_after"],
+            shrink["bytes_before"], shrink["bytes_after"])
+        record["measurements"] = measure
+        self.description_text.setPlainText(desc["text"])
         measure_text = "Model: %s  %s" % (
-            payload["model_used"],
-            core.format_measurements(payload["measurements"]))
-        if payload["from_cache"]:
+            desc["model_used"], format_measurements(measure))
+        if desc.get("from_cache"):
             measure_text += "  (from cache)"
         self.measurements_label.setText(measure_text)
         self.logger.info(
             "describe done for %s with %s%s: %s"
-            % (record["name"], payload["model_used"],
-               " (from cache)" if payload["from_cache"] else "",
+            % (record["name"], desc["model_used"],
+               " (from cache)" if desc.get("from_cache") else "",
                measure_text))
         self._refresh_cache_label()
 
@@ -1048,16 +1298,35 @@ class MainWindow(QMainWindow):
         self.logger.action("describe cancelled")
 
     def _on_cancel_describe(self):
-        if self._worker is not None and self._worker.isRunning():
+        # cancel() is safe before the thread starts: run() checks
+        # the flag first and reports cancelled.
+        if self._worker is not None:
             self._worker.cancel()
             self.status_bar.showMessage("Cancelling...")
 
     # -- cache, report, menus -----------------------------------------
     def _refresh_cache_label(self):
-        opt_count, desc_count, total = self.cache.stats()
-        self.cache_label.setText(
-            "Cache: %d optimized picture(s), %d description(s), %s"
-            % (opt_count, desc_count, core.human_size(total)))
+        if self._stats_worker is not None:
+            self._stats_pending = True
+            return
+        worker = CliWorker(["cache-stats", "--json"], True, self)
+        worker.done.connect(self._on_cache_stats)
+        worker.done.connect(worker.deleteLater)
+        self._stats_worker = worker
+        worker.start()
+
+    def _on_cache_stats(self, payload):
+        self._stats_worker = None
+        if payload is not None:
+            self.cache_label.setText(
+                "Cache: %d optimized picture(s), %d description(s), %s"
+                % (payload["optimized"], payload["descriptions"],
+                   human_size(payload["bytes"])))
+        else:
+            self.cache_label.setText("Cache: unavailable")
+        if self._stats_pending:
+            self._stats_pending = False
+            self._refresh_cache_label()
 
     def _on_clear_cache(self):
         answer = QMessageBox.question(
@@ -1067,12 +1336,33 @@ class MainWindow(QMainWindow):
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if answer != QMessageBox.Yes:
             return
-        removed, freed = self.cache.clear()
+        if self._clear_worker is not None:
+            return
+        worker = CliWorker(["cache-clear"], False, self)
+        worker.done.connect(self._on_cache_cleared)
+        worker.done.connect(worker.deleteLater)
+        self._clear_worker = worker
+        self.status_bar.showMessage("Clearing the cache...")
+        worker.start()
+
+    def _on_cache_cleared(self, text):
+        self._clear_worker = None
         self._refresh_cache_label()
-        self.status_bar.showMessage(
-            "Cache cleared: %d file(s) removed" % removed)
-        self.logger.action("cache cleared (%d files, %s freed)"
-                           % (removed, core.human_size(freed)))
+        if text:
+            # The CLI prints "Cache cleared: N files removed, X
+            # freed."; keep the count in the status line.
+            match = re.search(r"(\d+) files? removed, (.+?) freed",
+                              text)
+            if match:
+                self.status_bar.showMessage(
+                    "Cache cleared: %s file(s) removed"
+                    % match.group(1))
+                self.logger.action(
+                    "cache cleared (%s files, %s freed)"
+                    % (match.group(1), match.group(2)))
+                return
+        self.status_bar.showMessage("Cache cleared")
+        self.logger.action("cache cleared")
 
     def _on_debug_report(self):
         path = self.logger.generate_report()
@@ -1119,14 +1409,14 @@ class MainWindow(QMainWindow):
         if event.mimeData().hasUrls():
             urls = [u.toLocalFile() for u in event.mimeData().urls()]
             if any(os.path.splitext(u)[1].lower()
-                   in core.SUPPORTED_EXTENSIONS for u in urls):
+                   in SUPPORTED_EXTENSIONS for u in urls):
                 event.acceptProposedAction()
 
     def dropEvent(self, event):
         paths = [u.toLocalFile() for u in event.mimeData().urls()]
         images = [p for p in paths
                   if os.path.splitext(p)[1].lower()
-                  in core.SUPPORTED_EXTENSIONS]
+                  in SUPPORTED_EXTENSIONS]
         if images:
             self.add_images(images)
         event.acceptProposedAction()

@@ -4,6 +4,7 @@
 #   bash optimizer-cli optimize photo.png --width 512
 #   bash optimizer-cli describe photo.png
 #   bash optimizer-cli cache-clear
+#   bash optimizer-cli cache-stats
 #   bash optimizer-cli debug-report
 set -euo pipefail
 

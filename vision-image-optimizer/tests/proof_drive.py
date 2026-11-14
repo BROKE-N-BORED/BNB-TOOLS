@@ -1,21 +1,27 @@
 #!/usr/bin/env python3
-"""GUI proof for Vision Image Optimizer (S63 harness).
+"""GUI proof for Vision Image Optimizer v0.2.0 (S63 harness).
 
-Opens the REAL window from a fresh unzip under Xvfb, drives it end
-to end (add image, set 512w, optimize, describe against the fake
-Ollama server, cancel path, cache hit on second describe), and
+Opens the REAL thin-viewer window from a fresh unzip under Xvfb,
+drives it end to end (add image, set 512w, optimize via the shrink
+subprocess, describe via shrink + describe subprocesses against the
+fake Ollama server, cancel path, cache hit on second describe), and
 saves screenshots for eyeballing.
 
 Run separately from the suite, from the fresh unzip:
 
     xvfb-run -a python -u tests/proof_drive.py \
-        --shots ~/workspace/vision-optimizer-verify/shots \
-        --log ~/workspace/vision-optimizer-verify/proof.log
+        --shots ~/workspace/vision-optimizer-verify-v020/shots \
+        --log ~/workspace/vision-optimizer-verify-v020/proof.log
 
 S63 rules followed: persistent QTimer safety watcher from the
 start, python -u, log to a file, absolute paths, wall-clock waits,
 the app's real stylesheet applied in the harness, stderr checked
 for RecursionError / SystemError / tracebacks after the run.
+
+The window is pointed at the fake server through the ollama_url
+setting (there is no injected client any more), and the fake
+server's cache is isolated by pointing XDG_CACHE_HOME and
+XDG_CONFIG_HOME at the state folder before anything runs.
 """
 
 import argparse
@@ -30,9 +36,8 @@ sys.path.insert(0, TREE)
 sys.path.insert(0, HERE)
 
 from helpers import GOOD_DESCRIPTION, FakeOllama, make_image  # noqa: E402
-from optimizer import core, gui  # noqa: E402
+from optimizer import __version__, gui  # noqa: E402
 from optimizer.debug_log import DebugLogger  # noqa: E402
-from optimizer.ollama import OllamaClient  # noqa: E402
 from optimizer.settings import Settings  # noqa: E402
 from PySide6.QtCore import QPoint, QSettings, Qt, QTimer  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
@@ -125,8 +130,14 @@ def main():
     os.makedirs(shots, exist_ok=True)
     os.makedirs(state, exist_ok=True)
 
+    # Isolate the subprocesses' settings + cache stores (they read
+    # their own stores, not the window's): set before anything runs.
+    os.environ["XDG_CACHE_HOME"] = os.path.join(state, "xdg-cache")
+    os.environ["XDG_CONFIG_HOME"] = os.path.join(state, "xdg-config")
+
     log = open(os.path.abspath(args.log), "w", encoding="utf-8")
     log.write("proof run from tree: %s\n" % TREE)
+    log.write("version: %s\n" % __version__)
     log.flush()
 
     # The QApplication comes first, before any image work.
@@ -145,17 +156,14 @@ def main():
         qsettings = QSettings(os.path.join(state, "settings.ini"),
                               QSettings.IniFormat)
         settings = Settings(qsettings)
-        cache = core.ImageCache(os.path.join(state, "cache"))
-        logger = DebugLogger("vision-image-optimizer", "0.1.0",
+        logger = DebugLogger("vision-image-optimizer", __version__,
                              log_dir=os.path.join(state, "logs"))
 
         server = FakeOllama().start()
         servers.append(server)
-        client = OllamaClient(server.base_url)
+        settings.set("ollama_url", server.base_url)
 
-        window = gui.MainWindow(settings=settings, cache=cache,
-                                logger=logger,
-                                ollama_client=client)
+        window = gui.MainWindow(settings=settings, logger=logger)
         window.show()
         app.processEvents()
         check("window opens at default size",
@@ -188,21 +196,29 @@ def main():
               in window.caveat_label.text())
         screenshot(window, os.path.join(shots, "02-image-added.png"))
 
-        # 512w is the default; set it explicitly and optimize.
+        # 512w is the default; set it explicitly and optimize
+        # (async now: the shrink subprocess runs in a thread).
         window.size_preset.setCurrentText("512w")
         app.processEvents()
         window.optimize_button.click()
-        app.processEvents()
         out = os.path.join(state, "optimized", "shot-1080p-512w.jpg")
-        check("optimize wrote the file", os.path.exists(out), out)
+        ok = wait_until(lambda: os.path.exists(out), 15, app)
+        check("optimize wrote the file", ok, out)
         if os.path.exists(out):
             from PIL import Image
             with Image.open(out) as shot:
                 check("optimized picture is 512x288",
                       shot.size == (512, 288), str(shot.size))
+        ok = wait_until(lambda: window._worker is None, 10, app)
+        check("optimize worker finishes", ok)
+        check("cache label shows the optimized picture",
+              wait_until(lambda: "1 optimized picture(s)" in
+                         window.cache_label.text(), 15, app),
+              window.cache_label.text())
         screenshot(window, os.path.join(shots, "03-optimized.png"))
 
-        # Describe against the fake server.
+        # Describe against the fake server (shrink subprocess,
+        # then describe subprocess on the shrunken copy).
         started = time.monotonic()
         window.describe_button.click()
         app.processEvents()
@@ -210,7 +226,7 @@ def main():
               window.busy_light.property("busy") is True)
         ok = wait_until(
             lambda: GOOD_DESCRIPTION in
-            window.description_text.toPlainText(), 15, app)
+            window.description_text.toPlainText(), 20, app)
         elapsed = time.monotonic() - started
         check("describe fills the description", ok)
         check("measurements line has tokens and model",
@@ -230,7 +246,7 @@ def main():
         window.describe_button.click()
         ok = wait_until(
             lambda: GOOD_DESCRIPTION in
-            window.description_text.toPlainText(), 15, app)
+            window.description_text.toPlainText(), 20, app)
         check("second describe fills the description", ok)
         check("cache hit visibly marked",
               "from cache" in window.measurements_label.text(),
@@ -242,9 +258,12 @@ def main():
 
         # Cancel path: slow server + a fresh prompt (busts the
         # description cache), cancel mid-call, nothing lands.
+        # The window is repointed through the Ollama address box,
+        # the way a user would do it.
         slow = FakeOllama(delay=3.0).start()
         servers.append(slow)
-        window.client.base_url = slow.base_url
+        window.ollama_url_edit.setText(slow.base_url)
+        window.ollama_url_edit.editingFinished.emit()
         window.prompt_edit.setText(
             "Describe this image in plain words, second look.")
         window.prompt_edit.editingFinished.emit()
@@ -253,7 +272,8 @@ def main():
         ok = wait_until(
             lambda: window.cancel_button.isEnabled(), 5, app)
         check("cancel button enables while describing", ok)
-        time.sleep(0.3)
+        # Let the shrink step finish so the cancel lands mid-describe.
+        time.sleep(1.0)
         app.processEvents()
         window.cancel_button.click()
         ok = wait_until(lambda: window._worker is None, 10, app)
@@ -261,7 +281,8 @@ def main():
         check("cancelled describe leaves no description",
               window.description_text.toPlainText() == "")
         screenshot(window, os.path.join(shots, "06-cancelled.png"))
-        window.client.base_url = server.base_url
+        window.ollama_url_edit.setText(server.base_url)
+        window.ollama_url_edit.editingFinished.emit()
 
         # Crop: rubber-band drag on the preview.
         preview = window.preview

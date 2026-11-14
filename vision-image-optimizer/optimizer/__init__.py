@@ -5,6 +5,6 @@ One window, drop images in, set your sizes, it shrinks and describes
 them with the local model. Describing is optional; shrinking is not.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __app_name__ = "vision-image-optimizer"
 __display_name__ = "Vision Image Optimizer"

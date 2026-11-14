@@ -152,7 +152,7 @@ class Settings:
         return int(preset)
 
     def optimize_settings(self):
-        """The core.optimize_* settings dict from the stored values."""
+        """The shrink.optimize_* settings dict from the stored values."""
         return {
             "width": self.target_width(),
             "quality": self.quality(),

@@ -1,7 +1,7 @@
 # Double-click installer. GLib-safe Exec: no nested escaped quotes,
 # no backslashes (GLib unescapes them). %k is the path of this file;
 # some launchers (gio launch) expand %k to empty, so the fallback
-# uses the working directory AS the folder — dirname() of it would
+# uses the working directory AS the folder: dirname() of it would
 # go up one level and miss install.sh.
 [Desktop Entry]
 Type=Application

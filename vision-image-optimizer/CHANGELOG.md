@@ -1,6 +1,36 @@
 # Changelog
 
-## v0.1.0 — 2026-11-14
+## v0.2.0 - 2026-11-14
+
+The engine is split into small, chainable pieces, and the window
+is a thin viewer over them. The window looks and behaves the same;
+what changed is underneath.
+
+- The chain: `vision-shrink` shrinks one picture, `vision-describe`
+  describes one picture as given, and the window views the result.
+  Each command runs on its own; chained together they are the full
+  run (`vision-shrink photo.png && vision-describe
+  photo-512w.jpg`), the same thing the Describe button does.
+- The GUI no longer shrinks or describes anything itself. Optimize
+  runs the shrink step, Describe runs shrink then describe, the
+  cache label comes from `cache-stats`, and Clear cache runs
+  `cache-clear`. Everything runs in a worker thread, so the window
+  never blocks; Cancel kills the running step promptly.
+- Describe behavior change: `vision-describe` (and the `describe`
+  subcommand) no longer shrinks first. It describes the file as
+  given. Hand it the shrunken copy for the small-token look; the
+  window's Describe button still saves that copy first.
+- New commands on PATH after install: `vision-shrink` and
+  `vision-describe`, next to `vision-image-optimizer`. Both take
+  `--json` for one machine readable result object.
+- New `cache-stats` subcommand (with `--json`): how many optimized
+  pictures and descriptions the cache holds, and how much disk
+  they take.
+- The release zip is written outside the tool folder by default
+  (use `--out` to pick a destination), so the folder stays all
+  UTF-8 text.
+
+## v0.1.0 - 2026-11-14
 
 First release.
 

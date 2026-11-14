@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Vision Image Optimizer installer — double-click "Install Vision Image
+# Vision Image Optimizer installer: double-click "Install Vision Image
 # Optimizer" or run: bash install.sh
 #
 # Installs PySide6 + Pillow into a private .venv (Mint's Python is
@@ -10,7 +10,7 @@
 # (xenity, zenity, or yad): a progress window, then a success dialog
 # asking "Open it now?", or a plain-language error dialog with the
 # log path on failure. Without a dialog tool it runs in the terminal
-# instead — the documented degraded path, not the plan.
+# instead, the documented degraded path, not the plan.
 #
 # No terminal command appears in any user-facing message. The
 # installer heals its own missing system prerequisite (python3-venv)
@@ -82,7 +82,7 @@ pip_install_deps() {
   # Retry the big download up to 3 times. A failed try leaves its
   # partial download in pip's cache, so the next try picks up where
   # the last one got to instead of starting over from scratch.
-  # PySide6 + Pillow both ship wheels — no compile step, no compiler
+  # PySide6 + Pillow both ship wheels, so no compile step, no compiler
   # needed on his PC.
   echo "Downloading the interface toolkit (one-time, about 150 MB)..."
   tries=0
@@ -168,7 +168,7 @@ do_install() {
 
   progress 80 "Making the app icon..."
   # Icon PNGs: the release zip ships them, but a fresh clone has only
-  # the SVG — render them now so the launcher never points at a
+  # the SVG, render them now so the launcher never points at a
   # missing file. A failed render only warns: the app still works,
   # the icon just falls back to the system default.
   if [ ! -f "$DIR/assets/vision.png" ]; then
@@ -179,7 +179,7 @@ do_install() {
   fi
 
   progress 90 "Adding the app menu entry..."
-  # App-menu launcher (absolute paths — no quoting tricks needed).
+  # App-menu launcher (absolute paths, no quoting tricks needed).
   # NOTE: Exec= is quoted, Icon= must NOT be quoted. GLib strips
   # quotes from Exec= but NOT from Icon=, so a quoted Icon= shows
   # the generic gear icon.
@@ -210,9 +210,12 @@ EOF
     fi
   fi
 
-  # Command line on PATH after install.
+  # Command line on PATH after install: the combined command plus
+  # the two chain pieces (each also works on its own).
   mkdir -p "$HOME/.local/bin"
   ln -sf "$DIR/optimizer-cli" "$HOME/.local/bin/vision-image-optimizer"
+  ln -sf "$DIR/vision-shrink" "$HOME/.local/bin/vision-shrink"
+  ln -sf "$DIR/vision-describe" "$HOME/.local/bin/vision-describe"
 
   if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$HOME/.local/share/applications" \
