@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# OCR Reader - open the window: run with: bash ocr-reader
+#   bash ocr-reader --help
+#   bash ocr-reader
+set -euo pipefail
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+# Resolve symlinks (the installed command is a symlink into this folder).
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+# Stay in the caller's directory: file arguments are
+# relative to where the command was run, not to the app
+# folder. The package is found through PYTHONPATH.
+export PYTHONPATH="$DIR${PYTHONPATH:+:$PYTHONPATH}"
+
+if [ -x "$DIR/.venv/bin/python" ]; then
+  PY="$DIR/.venv/bin/python"
+else
+  PY="python3"
+fi
+
+exec "$PY" -m ocrreader.gui_main "$@"

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>OCR Reader</title>
+  <rect x="8" y="8" width="240" height="240" rx="48" fill="#23262b" stroke="#3a3e44" stroke-width="4"/>
+  <!-- lines of text: the page being read -->
+  <rect x="44" y="56" width="120" height="14" rx="7" fill="#b0b0b0"/>
+  <rect x="44" y="88" width="96" height="14" rx="7" fill="#b0b0b0"/>
+  <rect x="44" y="120" width="132" height="14" rx="7" fill="#b0b0b0"/>
+  <rect x="44" y="152" width="72" height="14" rx="7" fill="#b0b0b0"/>
+  <!-- magnifier: the reader, over the text -->
+  <circle cx="168" cy="168" r="46" fill="#23262b" fill-opacity="0.85" stroke="#e8a33d" stroke-width="12"/>
+  <line x1="202" y1="202" x2="230" y2="230" stroke="#e8a33d" stroke-width="14" stroke-linecap="round"/>
+  <!-- enlarged text inside the lens -->
+  <rect x="146" y="150" width="44" height="10" rx="5" fill="#e8e8e8"/>
+  <rect x="146" y="170" width="32" height="10" rx="5" fill="#e8e8e8"/>
+</svg>
