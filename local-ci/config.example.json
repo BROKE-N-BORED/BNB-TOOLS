@@ -1,0 +1,76 @@
+{
+  "_comment": "Local CI config (BNB-TOOLS T28). Every key is optional; a missing ci/config.json degrades to the defaults below. Keys starting with _ are comments and are ignored. Unknown keys are an error: a mistyped key silently ignored would mean the check you think is running is not the check running.",
+  "_doc_counts": "Counts to record, each with an optional assertion. Kinds: files (recursive count under path matching pattern, default *), dirs (immediate subdirs of path), lines (lines in the file at path), matches (regex matches in the file at path). expected/min/max turn a count into a gate; without one the count is recorded only and always passes.",
+  "_mode_check": "Check that every named executable carries its exec bit on disk. Default true.",
+  "_status_file": "Verdict file at the repo root. Default CI-STATUS.md.",
+  "_suite_command": "The suite command, as a list or a single string. Default when tests/ exists: python3 -m unittest discover -s tests. When tests/ does not exist and no suite_command is set, the suite check SKIPs honestly instead of failing.",
+  "_suite_count_pattern": "Regex with one group, run over the suite log to find the test count; the last match wins. Default: Ran (\\d+) tests?",
+  "_suite_timeout": "Seconds before the suite is killed and marked FAIL. Default 280 (the J1 value).",
+  "_tmp_base": "Where throwaway work dirs live. Default: $LOCAL_CI_TMP, then ~/workspace/tmp when it exists (the sandbox /tmp is a small tmpfs and a suite run can fill it), else the system temp dir.",
+  "_zip": "Build a throwaway Release-shaped zip and verify its stored modes. Default true. Set false for repos with nothing to pack (docs-only repos).",
+  "_zip_exclude_dirs": "Dirs skipped by the zip build, the repo-size count, and files doc counts. Default: __pycache__, .git, .venv, node_modules, .forge.",
+  "_zip_exclude_suffixes": "Filename suffixes skipped the same way. Default: .pyc, .pyo, .zip (the check zip is a throwaway; nesting a Release zip inside it adds nothing).",
+  "_zip_executable_globs": "Globs that also ship executable (matched against the path and the basename). Default: *.sh, *.desktop. Glob-matched files are NOT checked on disk: a *.sh invoked only via `sh file.sh` needs no exec bit, and the zip stores 100755 for it either way.",
+  "_zip_executables": "Root-relative paths that ship with the exec bit. Default: run.sh, install.sh, browser-setup.sh, install-gui.py, uninstall.sh (T1's list). Names listed here are REQUIRED: missing is a failure. Default-list names that are absent are fine.",
+  "_zip_executables_file": "A manifest file in the repo (one root-relative path per line, # comments), the Forge Browser EXECUTABLES.txt shape. Names from it are required and merge with zip_executables. Default: none.",
+  "_zip_top": "Top folder name inside the throwaway zip. Default: the repo dir name.",
+  "doc_counts": [
+    {
+      "expected": 72,
+      "kind": "dirs",
+      "label": "skills",
+      "path": "skills"
+    },
+    {
+      "kind": "files",
+      "label": "test files",
+      "min": 1,
+      "path": "tests",
+      "pattern": "test_*.py"
+    },
+    {
+      "expected": 1,
+      "kind": "matches",
+      "label": "readme mentions",
+      "path": "README.md",
+      "pattern": "72 skills"
+    }
+  ],
+  "mode_check": true,
+  "project": "My Project",
+  "status_file": "CI-STATUS.md",
+  "suite_command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests"
+  ],
+  "suite_count_pattern": "Ran (\\d+) tests?",
+  "suite_timeout": 280,
+  "tmp_base": null,
+  "zip": true,
+  "zip_exclude_dirs": [
+    "__pycache__",
+    ".git",
+    ".venv",
+    "node_modules",
+    ".forge"
+  ],
+  "zip_exclude_suffixes": [
+    ".pyc",
+    ".pyo",
+    ".zip"
+  ],
+  "zip_executable_globs": [
+    "*.sh",
+    "*.desktop"
+  ],
+  "zip_executables": [
+    "install.sh",
+    "run.sh"
+  ],
+  "zip_executables_file": null,
+  "zip_top": "my-project"
+}

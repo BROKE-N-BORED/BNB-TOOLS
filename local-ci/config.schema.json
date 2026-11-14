@@ -1,0 +1,164 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Config for ci/config.json. Every key is optional; a missing file degrades to defaults. Keys starting with _ are comment keys and are ignored. The tool itself validates unknown keys at run time (unknown key = error).",
+  "patternProperties": {
+    "^_": {
+      "description": "Comment key, ignored."
+    }
+  },
+  "properties": {
+    "doc_counts": {
+      "description": "Counts to record, each with an optional expected/min/max assertion.",
+      "items": {
+        "properties": {
+          "expected": {
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "files",
+              "dirs",
+              "lines",
+              "matches"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "max": {
+            "type": "integer"
+          },
+          "min": {
+            "type": "integer"
+          },
+          "path": {
+            "description": "Repo-relative path.",
+            "type": "string"
+          },
+          "pattern": {
+            "description": "Glob for files kind (default *); regex for matches kind.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "path"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "mode_check": {
+      "default": true,
+      "description": "Check that every named executable carries its exec bit on disk.",
+      "type": "boolean"
+    },
+    "project": {
+      "description": "Project name in the verdict file. Default: the repo dir name.",
+      "type": "string"
+    },
+    "status_file": {
+      "default": "CI-STATUS.md",
+      "description": "Verdict file at the repo root.",
+      "type": "string"
+    },
+    "suite_command": {
+      "description": "Suite command, as a list or a single string (split on whitespace). Default when tests/ exists: python3 -m unittest discover -s tests. When tests/ does not exist and no suite_command is set, the suite check SKIPs.",
+      "items": {
+        "type": "string"
+      },
+      "type": [
+        "array",
+        "string"
+      ]
+    },
+    "suite_count_pattern": {
+      "default": "Ran (\\d+) tests?",
+      "description": "Regex with one group, run over the suite log to find the test count; the last match wins.",
+      "type": "string"
+    },
+    "suite_timeout": {
+      "default": 280,
+      "description": "Seconds before the suite is killed and marked FAIL.",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "tmp_base": {
+      "description": "Where throwaway work dirs live. Default: $LOCAL_CI_TMP, then ~/workspace/tmp when it exists, else the system temp dir.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "zip": {
+      "default": true,
+      "description": "Build a throwaway Release-shaped zip and verify its stored modes.",
+      "type": "boolean"
+    },
+    "zip_exclude_dirs": {
+      "default": [
+        "__pycache__",
+        ".git",
+        ".venv",
+        "node_modules",
+        ".forge"
+      ],
+      "description": "Dirs skipped by the zip build, the repo-size count, and files doc counts.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "zip_exclude_suffixes": {
+      "default": [
+        ".pyc",
+        ".pyo",
+        ".zip"
+      ],
+      "description": "Filename suffixes skipped the same way.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "zip_executable_globs": {
+      "default": [
+        "*.sh",
+        "*.desktop"
+      ],
+      "description": "Globs that also ship executable (matched against the path and the basename). Glob-matched files are not checked on disk.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "zip_executables": {
+      "default": [
+        "run.sh",
+        "install.sh",
+        "browser-setup.sh",
+        "install-gui.py",
+        "uninstall.sh"
+      ],
+      "description": "Root-relative paths that ship with the exec bit. Names listed here are required: missing is a failure.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "zip_executables_file": {
+      "description": "A manifest file in the repo (one root-relative path per line, # comments), the Forge Browser EXECUTABLES.txt shape. Names from it are required and merge with zip_executables.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "zip_top": {
+      "description": "Top folder name inside the throwaway zip. Default: the repo dir name.",
+      "type": "string"
+    }
+  },
+  "title": "Local CI config (BNB-TOOLS T28)",
+  "type": "object"
+}
