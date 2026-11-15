@@ -27,7 +27,7 @@ that can be billing-locked.
 
 After the build, before the push. The order is: build and
 verify the tree, run this check, push only when it passes, then
-cut the Release. `CI-STATUS.md` rides in the push, so the repo
+update the Release. `CI-STATUS.md` rides in the push, so the repo
 page shows the last verdict.
 
 It does not overlap T1 or T24:
@@ -150,6 +150,25 @@ Run `sh ci/check.sh` from the repo root to re-check.
 A broken config still writes a red verdict: a stale green
 `CI-STATUS.md` is worse than a red one. `--no-status` skips
 writing the file (dry run).
+
+## Telling an infra-kill from a test failure
+
+When a CI run fails, compare how long the job lived against how
+long the suite takes to run. A run that dies far faster than the
+suite takes never got to the tests - it was killed at startup,
+which means infrastructure, not code.
+
+The case that proved it (Forge Browser, 2026-11-14): Actions
+jobs were dying in 3-4 seconds against a suite that takes about
+80 seconds to run. A suite cannot fail in 3 seconds when it
+needs 80 to run at all - the jobs were killed at startup by the
+billing lock, before any test ran. Chasing test failures there
+would have been chasing nothing.
+
+The verdict file records the suite time on every run, so the
+comparison is always available: if the job's lifetime is a small
+fraction of the recorded suite time, look at the infrastructure
+(billing, runners, startup) before looking at the tests.
 
 ## Config
 

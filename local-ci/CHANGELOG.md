@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.1.1 - 2026-11-15
+
+README only, no code change (Delta 6).
+
+- New section: telling an infra-kill from a test failure.
+  Compare the job's lifetime against the suite's recorded
+  runtime - a run that dies far faster than the suite takes
+  never got to the tests (Forge Browser, 2026-11-14: jobs
+  dying in 3-4s against an 80s suite were killed at startup
+  by the billing lock).
+- Wording: "cut the Release" replaced with "update the
+  Release" (Joshua, 2026-11-14 - he does not like the word
+  cut).
+
 ## v0.1.0 - 2026-11-14
 
 First release.
