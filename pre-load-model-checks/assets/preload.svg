@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect x="8" y="8" width="240" height="240" rx="48" fill="#2e5e4e"/>
+  <rect x="28" y="28" width="200" height="200" rx="32" fill="#f5f1e6"/>
+  <!-- gauge arc: the check before the load -->
+  <path d="M 64 150 A 64 64 0 0 1 192 150" fill="none" stroke="#2e5e4e" stroke-width="16" stroke-linecap="round"/>
+  <line x1="128" y1="150" x2="168" y2="110" stroke="#c0392b" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="128" cy="150" r="12" fill="#2e5e4e"/>
+  <!-- check mark -->
+  <path d="M 88 196 L 116 224 L 172 168" fill="none" stroke="#2e5e4e" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

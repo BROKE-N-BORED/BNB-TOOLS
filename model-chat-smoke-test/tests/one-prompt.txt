@@ -1,0 +1,2 @@
+# One prompt only, so a hang test costs one timeout instead of three.
+hello

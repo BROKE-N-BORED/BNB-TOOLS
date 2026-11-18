@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.1.1 - 2026-11-17
+
+README only, no code change (Delta 7).
+
+- New section: known failure modes. Cluster contamination (a
+  color cluster dragged by neighboring pixels; brightest-
+  pixel anchoring as the fix - Campbell's Chunky v1 reds
+  came out brown). Neon/fluorescent boost option (a photo
+  cannot measure neon - keep real hues, push to full
+  fluorescent saturation/brightness, instead of shipping
+  dull). The code changes for anchoring + boost are a future
+  T35 version; the README documents the failure modes
+  honestly now.
+- New section: one filename per version. A new version
+  reusing the old filename can be served stale from a cache
+  (the COLOR PALLETS cache incident, proven twice).
+
 ## v0.1.0 - 2026-11-15
 
 First release.

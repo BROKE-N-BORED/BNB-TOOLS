@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.1.2 - 2026-11-17
+
+README only, no code change (Delta 7).
+
+- New section: disk-space guard. Check free space before and
+  during suites, fail loudly with the number (CODE FORGE DEV
+  chunk 3 died silently on a full disk, temp drive 9 MB free).
+- New section: chunked resume. Bank each chunk's results as
+  it finishes, resume from the next unbanked chunk (27
+  chunks, 18 of 26 survived a restart, 701 tests banked,
+  after two full ~2h runs died with no summary).
+- New section: environmental failures are not bugs. /tmp-full
+  and port-held failures name the cause instead of reporting
+  a false test failure.
+- New section: anchor your process checks. A check that
+  pattern-matches its own command line always reports
+  "already running" (Arlo-OST, 2026-11-15 20:31).
+
 ## v0.1.1 - 2026-11-15
 
 README only, no code change (Delta 6).

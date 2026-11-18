@@ -103,6 +103,41 @@ Two honest limits:
 - Transparency is dropped: photos are read as RGB, so a
   transparent pixel reads as its RGB value, not as see-through.
 
+## Known failure modes
+
+Two failure modes found in the field, documented honestly
+here. The code fixes for both are a future T35 version; the
+current code does not do them yet.
+
+**Cluster contamination.** A color cluster can be dragged by
+neighboring pixels: the median-cut box holds a mix, and the
+snapped color lands somewhere between the real color and its
+neighbors instead of on the real color. The case that proved
+it: Campbell's Chunky v1, where the reds came out brown. The
+fix is brightest-pixel anchoring: anchor each cluster on its
+brightest sampled pixel instead of the box average, so the
+palette color is the color the eye actually sees in the photo,
+not the average of the color and everything next to it.
+
+**Neon and fluorescent colors.** A photo cannot measure neon:
+the camera records the dull version of a fluorescent color,
+and the palette ships dull. The fix is a neon/fluorescent
+boost option: keep the real hues from the photo, but push
+them to full fluorescent saturation and brightness, instead
+of shipping the dull recorded color as if it were the real
+one. The hues stay honest (they come from the photo); only
+the saturation and brightness are boosted, and only when the
+option is on.
+
+## One filename per version
+
+Every version of a palette file gets its own filename. A new
+version that reuses the old filename can be served stale from
+a cache, and the person opening it sees the old palette while
+believing it is the new one (the COLOR PALLETS cache incident,
+proven twice). The rule is the same one S1 and S6 carry for
+releases: new version, new filename, no exceptions.
+
 ## Errors
 
 Plain words, exit 1, never a traceback:

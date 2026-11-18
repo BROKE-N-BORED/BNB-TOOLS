@@ -170,6 +170,58 @@ comparison is always available: if the job's lifetime is a small
 fraction of the recorded suite time, look at the infrastructure
 (billing, runners, startup) before looking at the tests.
 
+## Disk-space guard
+
+Check free disk space before the suite starts and while it
+runs, and fail loudly with the number when space runs out. A
+suite that dies on a full disk looks exactly like a suite that
+died for no reason: no failing test, no error, just a run that
+stops. The case that proved it (CODE FORGE DEV, 2026-11-15):
+chunk 3 of the suite vanished silently because the temp drive
+had 9 MB free. Nothing in the log said disk. The fix is a
+guard, not a post-mortem: check before starting, check between
+chunks, and when free space drops below the threshold, stop
+and say "out of disk space: N MB free", so the next person
+reads the cause instead of hunting for it.
+
+## Chunked resume
+
+A long suite runs in chunks, and each finished chunk banks its
+results before the next one starts. When the run dies, the
+rerun resumes from the next unbanked chunk instead of starting
+over. The case that proved it (CODE FORGE DEV, 2026-11-15):
+two full runs of about two hours each died with no summary at
+all, and everything they had proven went with them. Split into
+27 chunks, 18 of 26 survived a restart, and 701 tests were
+banked. The rule: a chunk's results are written the moment the
+chunk finishes, and the resume list is the banked chunks, not
+the runner's memory. A runner that only reports at the end
+reports nothing when it dies.
+
+## Environmental failures are not bugs
+
+A suite can fail for reasons that have nothing to do with the
+code: /tmp full, a port already held, a service down. The
+runner must tell the difference and say so. A /tmp-full
+failure names the disk and the free space (see the disk-space
+guard above); a port-held failure names the port and the
+process holding it. Neither is a test failure, and neither
+should send anyone chasing code. If the runner cannot tell,
+it says it cannot tell; a shrug is honest, a false "test
+failed" is not.
+
+## Anchor your process checks
+
+A process check that pattern-matches its own command line
+always reports "already running", because the check itself
+matches the pattern. The case that proved it (Arlo-OST,
+2026-11-15 20:31): a guard meant to catch a second copy of a
+process matched its own `ps` line and declared the process
+already running when nothing was running at all. Anchor the
+check: match the exact command, exclude the checker's own
+PID, or match on a PID file, never on a bare substring of a
+command line that includes the check itself.
+
 ## Config
 
 `ci/config.json`. Missing config degrades to defaults with a

@@ -1,0 +1,14 @@
+# Template for the app launcher. The installer writes the real one
+# with the ABSOLUTE install path into Exec (see install.sh) - %k
+# would resolve to the menu folder, where the program is not.
+# Terminal=true: this is a command-line tool, so the icon opens a
+# terminal showing what it does (show-help.sh), then waits.
+[Desktop Entry]
+Type=Application
+Name=Model Chat Smoke Test
+Comment=Run a canned chat through each model and report pass or fail
+Exec="/path/to/model-chat-smoke-test/show-help.sh"
+Icon=utilities-terminal
+Terminal=true
+Categories=Utility;
+StartupNotify=false
