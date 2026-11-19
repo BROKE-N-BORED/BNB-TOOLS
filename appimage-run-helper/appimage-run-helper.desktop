@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=AppImage Runner
+Comment=Run an AppImage by clicking, no terminal
+Exec=/path/to/AppImage Runner/run.sh
+Icon=/path/to/AppImage Runner/assets/appimage.png
+Terminal=false
+Categories=Utility;

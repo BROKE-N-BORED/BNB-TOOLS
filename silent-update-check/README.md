@@ -172,6 +172,27 @@ will write into the renamed backup dir after a swap until it
 restarts. Keep runtime writes in the state dir or the home
 dir, not the app dir.
 
+## Rollback restores every build folder
+
+`rollback()` restores the whole previous app directory,
+every folder inside it, in one rename: the current (broken)
+version moves aside to `failed/`, the backup moves back into
+place. Nothing in the swap or the rollback copies files one
+at a time, so a half-upgraded app cannot happen by
+construction: the failure mode is a safe rollback, never a
+broken install. The case that proved the rule (SOLDAR
+self-update drive, 2026-11-17 ~22:00): a failed update left
+the engine half-upgraded and the app unable to start, and
+the fix was rollback restoring every build folder.
+
+One known limitation, from the same drive: an update does
+not remove files a newer version deleted. SOLDAR's updater
+hit that limit because it copies files over an existing
+tree. This module's swap sidesteps it: the staged version
+replaces the whole app directory, so a file the new version
+dropped is gone from the installed app (the backup still
+holds it until the next swap clears the backup slot).
+
 ## CLI
 
 Every piece is also a subcommand, for driving by hand and for
@@ -228,6 +249,28 @@ python3 demo.py --answer no     # full chain, restart No, then
                                 # staged update, no re-download
 python3 demo.py --pieces        # each piece alone, one at a time
 ```
+
+## Proving the loop: fake server first, live GitHub after publish
+
+Prove the update loop in two stages. First, the fake server:
+the demo and the test suite run against a local fake release
+server, which proves the Yes/No/up-to-date paths with no
+network. Then, live GitHub after the first real publish: the
+first real publish is the moment of truth, and only a run
+against real GitHub proves the loop end to end. Android
+Photo Transfer v0.1.1 (2026-11-18) was the first live-GitHub
+proof: 0.1.0 offered 0.1.1, and 0.1.1 reports current.
+
+After publishing a release, download the release zip back
+from GitHub and verify its hash (the GITDATA v0.1.5 step).
+That doubles as proof the in-app updater's download path
+works against real GitHub, not just that the file exists.
+
+Sidecar rule: a release published without the `.sha256`
+sidecar is never offered, so the publish checklist must
+include uploading the sidecar. The pull refuses a release
+with no usable checksum (see No blind downloads above), so
+a missing sidecar means the update never reaches the user.
 
 ## Rate limits
 

@@ -222,6 +222,23 @@ check: match the exact command, exclude the checker's own
 PID, or match on a PID file, never on a bare substring of a
 command line that includes the check itself.
 
+## Before the Release: check the real zip's modes (T39)
+
+Local CI proves the throwaway zip packs clean. The Release
+zip is a different artifact, built later by T1 or the
+project's own builder, and its stored modes need their own
+check before it is attached to a Release. Run T39
+release-zip-mode-checker as a pre-release step: it reads the
+built zip and fails if any `.desktop` or `.sh` entry is not
+stored 0o100755.
+
+The case that proved it (OST v22, 2026-11-18): the
+installer.desktop shipped non-executable in the v22 zip, so
+double-clicking it opened a text editor instead of launching
+the installer, and the fixed asset had to be re-uploaded to
+the Release. A stored-mode check on the built zip before
+upload would have caught it.
+
 ## Config
 
 `ci/config.json`. Missing config degrades to defaults with a

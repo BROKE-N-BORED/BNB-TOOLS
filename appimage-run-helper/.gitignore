@@ -1,0 +1,36 @@
+# AppImage Runner .gitignore
+
+# Python build products
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# The app's virtual environment (created by install.sh)
+.venv/
+
+# Rendered icon PNGs (build products of render_icons.py from
+# assets/appimage.svg; the release zip packs them, the tree does not)
+assets/*.png
+
+# Release zips are never committed inside the folder
+*.zip
+
+# Installer and runtime leftovers
+install.log
+.qt-probe.err
+.install-progress.fifo
+logs/
+
+# Dev-only build report (excluded from pushes and the zip)
+BUILD_REPORT.md
+
+# Secrets: never committed, in any project, ever.
+# API keys and credentials live in these files only.
+.env
+*.env
+.env.*
+providers.json
+*.pem
+*.key
+id_rsa*

@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.1.1 - 2026-11-18
+
+README only, no code change (Delta 8). The SOLDAR rollback
+lesson was checked against the code first: `rollback()`
+already restores every build folder (it renames the whole
+previous app directory back into place), so no code change
+was needed.
+
+- Rollback check: confirmed in the code and the tests.
+  `rollback()` moves the current version aside to `failed/`
+  and renames the whole backup directory back into place,
+  every folder inside it; the swap likewise renames the
+  whole app directory, so no per-file step can leave an app
+  half-upgraded. Tests: `TestLaunchAndRollback.
+  test_rollback_restores_the_backup`,
+  `TestLaunchAndRollback.test_rollback_with_no_backup`,
+  `TestInstallSwap.test_backup_keeps_the_old_version`,
+  `TestCLI.test_rollback_cli`, and `TestInstallSwap.
+  test_failed_swap_puts_the_old_version_back`.
+- New section: rollback restores every build folder. The
+  SOLDAR self-update drive (2026-11-17 ~22:00) left the
+  engine half-upgraded and the app unable to start; the
+  failure mode here is safe rollback, never a broken
+  install. Known limitation recorded: an update does not
+  remove files a newer version deleted (SOLDAR's updater);
+  the whole-directory swap sidesteps it, since the staged
+  version replaces the entire app directory.
+- New section: proving the loop, fake server first, live
+  GitHub after publish. Two-stage proof (Android Photo
+  Transfer v0.1.1, 2026-11-18, the first live-GitHub proof:
+  0.1.0 offered 0.1.1, 0.1.1 reports current); download-back
+  proof after publishing (GITDATA v0.1.5: download the
+  release zip back from GitHub and verify its hash, which
+  also proves the updater's download path against real
+  GitHub); sidecar rule (a release published without the
+  `.sha256` sidecar is never offered, so the publish
+  checklist must include uploading the sidecar).
+
 ## v0.1.0 - 2026-11-17
 
 First release.

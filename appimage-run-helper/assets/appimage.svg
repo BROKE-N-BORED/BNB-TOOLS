@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <rect x="12" y="12" width="232" height="232" rx="42" fill="#23262b" stroke="#3a3e44" stroke-width="4"/>
+  <!-- package box, bottom left -->
+  <g stroke="#c8c8c8" stroke-width="9" fill="none" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M48 156 L88 176 L128 156 L88 136 Z"/>
+    <path d="M48 156 V196 L88 216 V176"/>
+    <path d="M128 156 V196 L88 216"/>
+    <path d="M88 176 V216" opacity="0.55"/>
+  </g>
+  <!-- play triangle, the run action -->
+  <path d="M150 84 L222 132 L150 180 Z" fill="#e8a33d"/>
+  <!-- small flag on top, the permission tick -->
+  <g stroke="#e8a33d" stroke-width="9" fill="none" stroke-linecap="round">
+    <path d="M56 44 V96"/>
+  </g>
+  <path d="M56 48 L104 60 L56 74 Z" fill="#e8a33d"/>
+</svg>

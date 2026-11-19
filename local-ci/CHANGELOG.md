@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.1.3 - 2026-11-18
+
+README only, no code change (Delta 8).
+
+- New section: before the Release, check the real zip's
+  modes (T39). Local CI proves the throwaway zip packs
+  clean; the Release zip is built later, so run T39
+  release-zip-mode-checker on it as a pre-release step,
+  verifying every `.desktop` and `.sh` entry is stored
+  0o100755 before attaching it to a Release (OST v22,
+  2026-11-18: installer.desktop shipped non-executable,
+  double-click opened a text editor, fixed asset
+  re-uploaded).
+
 ## v0.1.2 - 2026-11-17
 
 README only, no code change (Delta 7).
